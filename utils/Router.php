@@ -82,10 +82,15 @@ class Router {
                  strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         
         if ($isAjax) {
+            // Очищаем все буферы вывода
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+            
             // Для AJAX запросов возвращаем JSON с ошибкой
             http_response_code($code);
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => "Ошибка {$code}: {$message}"]);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => "Ошибка {$code}: {$message}"], JSON_UNESCAPED_UNICODE);
             exit;
         } else if (DEBUG) {
             die("Ошибка {$code}: {$message}");

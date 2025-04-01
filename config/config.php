@@ -35,8 +35,14 @@ session_start();
 
 // Обработка ошибок
 if (DEBUG) {
-    ini_set('display_errors', 1);
-    ini_set('display_startup_errors', 1);
+    // В режиме отладки не выводим ошибки напрямую для AJAX-запросов
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        ini_set('display_errors', 0);
+        ini_set('display_startup_errors', 0);
+    } else {
+        ini_set('display_errors', 1);
+        ini_set('display_startup_errors', 1);
+    }
     error_reporting(E_ALL);
 } else {
     ini_set('display_errors', 0);
