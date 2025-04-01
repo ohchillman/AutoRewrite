@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_NAME=autorewrite
+      - DB_USER=autorewrite
+      - DB_PASS=autorewrite_password
+      - DB_CHARSET=utf8mb4
+    networks:
+      - autorewrite-network
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    environment:
+      - MYSQL_DATABASE=autorewrite
+      - MYSQL_USER=autorewrite
+      - MYSQL_PASSWORD=autorewrite_password
+      - MYSQL_ROOT_PASSWORD=root_password
+    networks:
+      - autorewrite-network
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    ports:
+      - "4444:4444"
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - autorewrite-network
+
+networks:
+  autorewrite-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
