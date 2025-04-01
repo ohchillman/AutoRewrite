@@ -24,6 +24,15 @@ class BaseController {
      * @param array $data Данные для представления
      */
     protected function render($view, $data = []) {
+        // Если это AJAX запрос, то не рендерим представление, а возвращаем ошибку в JSON
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Неверный запрос. Этот эндпоинт не предназначен для AJAX запросов.'
+            ], 400);
+            return;
+        }
+        
         $this->view->render($view, $data);
     }
     

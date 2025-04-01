@@ -71,23 +71,10 @@ class View {
             logOutputBuffer('after_view_render');
         }
         
-        // Для AJAX-запросов проверяем, является ли содержимое JSON
+        // Для AJAX-запросов не используем шаблон
         if ($isAjax) {
-            // Проверяем, является ли содержимое JSON
-            $json = json_decode($content, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                // Если это валидный JSON, отправляем его с правильными заголовками
-                header('Content-Type: application/json; charset=utf-8');
-                echo $content;
-            } else {
-                // Если это не JSON, преобразуем содержимое в JSON-ответ
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Ошибка формата ответа',
-                    'html_content' => $content
-                ], JSON_UNESCAPED_UNICODE);
-            }
+            // Выводим содержимое без шаблона
+            echo $content;
             return;
         }
         
