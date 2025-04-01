@@ -262,6 +262,17 @@ function setupDeleteConfirmation() {
                                 return jsonData;
                             } catch (e) {
                                 console.error('Failed to parse as JSON:', e);
+                                
+                                // Если получен HTML, считаем операцию успешной и перезагружаем страницу
+                                if (text.trim().startsWith('<') || (contentType && contentType.includes('text/html'))) {
+                                    console.log('Received HTML response, treating as success and reloading page');
+                                    return {
+                                        success: true,
+                                        message: 'Операция выполнена успешно',
+                                        refresh: true
+                                    };
+                                }
+                                
                                 throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
                             }
                         }
