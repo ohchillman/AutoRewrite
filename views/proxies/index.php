@@ -8,7 +8,7 @@
                 </button>
             </div>
             <div class="card-body collapse" id="addProxyForm">
-                <form action="/proxies/add" method="POST" class="ajax-form">
+                <form action="/proxies/add" method="POST">
                     <div class="row">
                         <div class="col-md-4">
                             <div class="mb-3">
@@ -130,7 +130,8 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-sm btn-info check-proxy-btn" data-proxy-id="<?php echo $proxy['id']; ?>">
+                                        <button type="button" class="btn btn-sm btn-info" 
+                                                onclick="window.location.href='/proxies/check/<?php echo $proxy['id']; ?>'">
                                             <i class="fas fa-sync-alt"></i> Проверить
                                         </button>
                                         <button type="button" class="btn btn-sm <?php echo $proxy['is_active'] ? 'btn-warning' : 'btn-success'; ?>" 
@@ -141,11 +142,12 @@
                                             <i class="fas fa-check"></i> Активировать
                                             <?php endif; ?>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-danger delete-btn" 
-                                                data-delete-url="/proxies/delete/<?php echo $proxy['id']; ?>"
-                                                data-item-name="прокси <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>">
-                                            <i class="fas fa-trash"></i> Удалить
-                                        </button>
+                                        <form action="/proxies/delete/<?php echo $proxy['id']; ?>" method="POST" style="display:inline;">
+                                            <button type="submit" class="btn btn-sm btn-danger" 
+                                                    onclick="return confirm('Вы уверены, что хотите удалить прокси <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>?');">
+                                                <i class="fas fa-trash"></i> Удалить
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -159,8 +161,8 @@
     </div>
 </div>
 
-<!-- Модальное окно для подтверждения удаления -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+<!-- Модальное окно для подтверждения удаления больше не нужно -->
+<!-- <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -176,7 +178,7 @@
             </div>
         </div>
     </div>
-</div>
+</div> -->
 
 <!-- Уведомления об успехе/ошибке -->
 <?php if (isset($_SESSION['success'])): ?>

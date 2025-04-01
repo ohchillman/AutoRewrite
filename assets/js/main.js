@@ -16,14 +16,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return new bootstrap.Popover(popoverTriggerEl);
     });
 
-    // Обработка AJAX форм
-    setupAjaxForms();
-
-    // Обработка проверки прокси
-    setupProxyChecking();
-
-    // Обработка модальных окон для удаления
-    setupDeleteConfirmation();
+    // AJAX функциональность отключена
+    // setupAjaxForms();
+    // setupProxyChecking();
+    // setupDeleteConfirmation();
 
     // Обработка реврайта контента
     setupRewriteContent();
