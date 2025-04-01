@@ -27,9 +27,9 @@ class ProxiesController extends BaseController {
     public function add() {
         Logger::info('Начало процесса добавления прокси', 'proxies');
         
-        // Проверяем, что это AJAX запрос и устанавливаем заголовок Content-Type
+        // Проверяем, что это AJAX запрос
         if ($this->isAjax()) {
-            header('Content-Type: application/json');
+            // Заголовок Content-Type будет установлен в методе jsonResponse
         }
         
         try {
@@ -246,9 +246,9 @@ class ProxiesController extends BaseController {
     public function delete($id) {
         Logger::info("Начало процесса удаления прокси (ID: $id)", 'proxies');
         
-        // Проверяем, что это AJAX запрос и устанавливаем заголовок Content-Type
+        // Проверяем, что это AJAX запрос
         if ($this->isAjax()) {
-            header('Content-Type: application/json');
+            // Заголовок Content-Type будет установлен в методе jsonResponse
         }
         
         try {
@@ -374,9 +374,9 @@ class ProxiesController extends BaseController {
     public function check($id) {
         Logger::info("Начало процесса проверки прокси (ID: $id)", 'proxies');
         
-        // Проверяем, что это AJAX запрос и устанавливаем заголовок Content-Type
+        // Проверяем, что это AJAX запрос
         if ($this->isAjax()) {
-            header('Content-Type: application/json');
+            // Заголовок Content-Type будет установлен в методе jsonResponse
         }
         
         try {
