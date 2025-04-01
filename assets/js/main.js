@@ -49,13 +49,27 @@ function setupAjaxForms() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                // Проверяем тип ответа
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Если ответ не JSON, выбрасываем ошибку
+                    throw new Error('Получен неверный формат ответа от сервера');
+                }
+            })
             .then(data => {
                 // Скрываем индикатор загрузки
                 hideLoading();
                 
                 // Показываем сообщение
                 showToast(data.success ? 'success' : 'error', data.message);
+                
+                // Если есть отладочная информация, выводим в консоль
+                if (data.debug) {
+                    console.log('Debug info:', data.debug);
+                }
                 
                 // Если успешно и указан редирект, перенаправляем
                 if (data.success && data.redirect) {
@@ -82,6 +96,7 @@ function setupAjaxForms() {
                 
                 // Показываем сообщение об ошибке
                 showToast('error', 'Произошла ошибка при отправке формы: ' + error.message);
+                console.error('Form submission error:', error);
             });
         });
     });
@@ -102,15 +117,22 @@ function setupProxyChecking() {
             this.disabled = true;
             
             // Отправляем запрос на проверку
-            fetch('/proxies/check', {
+            fetch('/proxies/check/' + proxyId, {
                 method: 'POST',
-                body: JSON.stringify({ proxyId: proxyId }),
                 headers: {
-                    'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                // Проверяем тип ответа
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Если ответ не JSON, выбрасываем ошибку
+                    throw new Error('Получен неверный формат ответа от сервера');
+                }
+            })
             .then(data => {
                 // Обновляем статус прокси
                 const statusElement = document.querySelector('#proxy-status-' + proxyId);
@@ -134,6 +156,7 @@ function setupProxyChecking() {
                 
                 // Показываем сообщение об ошибке
                 showToast('error', 'Произошла ошибка при проверке прокси: ' + error.message);
+                console.error('Proxy check error:', error);
             });
         });
     });
@@ -171,7 +194,16 @@ function setupDeleteConfirmation() {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    // Проверяем тип ответа
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json();
+                    } else {
+                        // Если ответ не JSON, выбрасываем ошибку
+                        throw new Error('Получен неверный формат ответа от сервера');
+                    }
+                })
                 .then(data => {
                     // Скрываем индикатор загрузки
                     hideLoading();
@@ -192,6 +224,7 @@ function setupDeleteConfirmation() {
                     
                     // Показываем сообщение об ошибке
                     showToast('error', 'Произошла ошибка при удалении: ' + error.message);
+                    console.error('Delete error:', error);
                 });
             });
             
@@ -224,7 +257,16 @@ function setupRewriteContent() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                // Проверяем тип ответа
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Если ответ не JSON, выбрасываем ошибку
+                    throw new Error('Получен неверный формат ответа от сервера');
+                }
+            })
             .then(data => {
                 // Восстанавливаем кнопку
                 this.innerHTML = 'Реврайт';
@@ -247,6 +289,7 @@ function setupRewriteContent() {
                 
                 // Показываем сообщение об ошибке
                 showToast('error', 'Произошла ошибка при реврайте: ' + error.message);
+                console.error('Rewrite error:', error);
             });
         });
     });
