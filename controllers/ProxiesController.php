@@ -25,66 +25,108 @@ class ProxiesController extends BaseController {
      * Добавление нового прокси
      */
     public function add() {
-        // Проверяем, что запрос отправлен методом POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->redirect('/proxies');
-            return;
-        }
-        
-        // Получаем данные из POST
-        $ip = $this->post('ip');
-        $port = $this->post('port');
-        $username = $this->post('username');
-        $password = $this->post('password');
-        $protocol = $this->post('protocol');
-        $country = $this->post('country');
-        
-        // Проверяем обязательные поля
-        if (empty($ip) || empty($port) || empty($protocol)) {
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->redirect('/proxies');
+                return;
+            }
+            
+            // Получаем данные из POST
+            $ip = $this->post('ip');
+            $port = $this->post('port');
+            $username = $this->post('username');
+            $password = $this->post('password');
+            $protocol = $this->post('protocol');
+            $country = $this->post('country');
+            
+            // Проверяем обязательные поля
+            if (empty($ip) || empty($port) || empty($protocol)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Необходимо заполнить поля IP, порт и протокол'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Необходимо заполнить поля IP, порт и протокол';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Проверяем, что порт является числом
+            if (!is_numeric($port)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Порт должен быть числом'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Порт должен быть числом';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Проверяем, что протокол допустимый
+            $validProtocols = ['http', 'https', 'socks4', 'socks5'];
+            if (!in_array($protocol, $validProtocols)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Недопустимый протокол'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Недопустимый протокол';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Добавляем прокси в базу данных
+            $proxyId = $this->db->insert('proxies', [
+                'ip' => $ip,
+                'port' => (int)$port,
+                'username' => $username,
+                'password' => $password,
+                'protocol' => $protocol,
+                'country' => $country,
+                'is_active' => 1,
+                'status' => 'unchecked'
+            ]);
+            
+            // Проверяем результат
+            if ($proxyId) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Прокси успешно добавлен',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Прокси успешно добавлен';
+                    $this->redirect('/proxies');
+                }
+            } else {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Ошибка при добавлении прокси'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Ошибка при добавлении прокси';
+                    $this->redirect('/proxies');
+                }
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
             if ($this->isAjax()) {
                 $this->jsonResponse([
                     'success' => false,
-                    'message' => 'Необходимо заполнить поля IP, порт и протокол'
+                    'message' => 'Ошибка при добавлении прокси: ' . $e->getMessage()
                 ]);
             } else {
-                $_SESSION['error'] = 'Необходимо заполнить поля IP, порт и протокол';
-                $this->redirect('/proxies');
-            }
-            return;
-        }
-        
-        // Добавляем прокси в базу данных
-        $proxyId = $this->db->insert('proxies', [
-            'ip' => $ip,
-            'port' => $port,
-            'username' => $username,
-            'password' => $password,
-            'protocol' => $protocol,
-            'country' => $country,
-            'is_active' => 1,
-            'status' => 'unchecked'
-        ]);
-        
-        // Проверяем результат
-        if ($proxyId) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => true,
-                    'message' => 'Прокси успешно добавлен',
-                    'refresh' => true
-                ]);
-            } else {
-                $_SESSION['success'] = 'Прокси успешно добавлен';
-                $this->redirect('/proxies');
-            }
-        } else {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Ошибка при добавлении прокси'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Ошибка при добавлении прокси';
+                $_SESSION['error'] = 'Ошибка при добавлении прокси: ' . $e->getMessage();
                 $this->redirect('/proxies');
             }
         }
@@ -96,43 +138,56 @@ class ProxiesController extends BaseController {
      * @param int $id ID прокси
      */
     public function delete($id = null) {
-        // Проверяем ID
-        if (empty($id)) {
+        try {
+            // Проверяем ID
+            if (empty($id)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'ID прокси не указан'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'ID прокси не указан';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Удаляем прокси из базы данных
+            $result = $this->db->delete('proxies', 'id = ?', [$id]);
+            
+            // Проверяем результат
+            if ($result) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Прокси успешно удален',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Прокси успешно удален';
+                    $this->redirect('/proxies');
+                }
+            } else {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Ошибка при удалении прокси'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Ошибка при удалении прокси';
+                    $this->redirect('/proxies');
+                }
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
             if ($this->isAjax()) {
                 $this->jsonResponse([
                     'success' => false,
-                    'message' => 'ID прокси не указан'
+                    'message' => 'Ошибка при удалении прокси: ' . $e->getMessage()
                 ]);
             } else {
-                $_SESSION['error'] = 'ID прокси не указан';
-                $this->redirect('/proxies');
-            }
-            return;
-        }
-        
-        // Удаляем прокси из базы данных
-        $result = $this->db->delete('proxies', 'id = ?', [$id]);
-        
-        // Проверяем результат
-        if ($result) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => true,
-                    'message' => 'Прокси успешно удален',
-                    'refresh' => true
-                ]);
-            } else {
-                $_SESSION['success'] = 'Прокси успешно удален';
-                $this->redirect('/proxies');
-            }
-        } else {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Ошибка при удалении прокси'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Ошибка при удалении прокси';
+                $_SESSION['error'] = 'Ошибка при удалении прокси: ' . $e->getMessage();
                 $this->redirect('/proxies');
             }
         }
@@ -144,62 +199,75 @@ class ProxiesController extends BaseController {
      * @param int $id ID прокси
      */
     public function toggle($id = null) {
-        // Проверяем ID
-        if (empty($id)) {
+        try {
+            // Проверяем ID
+            if (empty($id)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'ID прокси не указан'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'ID прокси не указан';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Получаем текущий статус
+            $proxy = $this->db->fetchOne("SELECT is_active FROM proxies WHERE id = ?", [$id]);
+            
+            if (!$proxy) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Прокси не найден'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Прокси не найден';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Инвертируем статус
+            $newStatus = $proxy['is_active'] ? 0 : 1;
+            
+            // Обновляем статус в базе данных
+            $result = $this->db->update('proxies', ['is_active' => $newStatus], 'id = ?', [$id]);
+            
+            // Проверяем результат
+            if ($result) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Статус прокси изменен',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Статус прокси изменен';
+                    $this->redirect('/proxies');
+                }
+            } else {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Ошибка при изменении статуса прокси'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Ошибка при изменении статуса прокси';
+                    $this->redirect('/proxies');
+                }
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
             if ($this->isAjax()) {
                 $this->jsonResponse([
                     'success' => false,
-                    'message' => 'ID прокси не указан'
+                    'message' => 'Ошибка при изменении статуса прокси: ' . $e->getMessage()
                 ]);
             } else {
-                $_SESSION['error'] = 'ID прокси не указан';
-                $this->redirect('/proxies');
-            }
-            return;
-        }
-        
-        // Получаем текущий статус
-        $proxy = $this->db->fetchOne("SELECT is_active FROM proxies WHERE id = ?", [$id]);
-        
-        if (!$proxy) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Прокси не найден'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Прокси не найден';
-                $this->redirect('/proxies');
-            }
-            return;
-        }
-        
-        // Инвертируем статус
-        $newStatus = $proxy['is_active'] ? 0 : 1;
-        
-        // Обновляем статус в базе данных
-        $result = $this->db->update('proxies', ['is_active' => $newStatus], 'id = ?', [$id]);
-        
-        // Проверяем результат
-        if ($result) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => true,
-                    'message' => 'Статус прокси изменен',
-                    'refresh' => true
-                ]);
-            } else {
-                $_SESSION['success'] = 'Статус прокси изменен';
-                $this->redirect('/proxies');
-            }
-        } else {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Ошибка при изменении статуса прокси'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Ошибка при изменении статуса прокси';
+                $_SESSION['error'] = 'Ошибка при изменении статуса прокси: ' . $e->getMessage();
                 $this->redirect('/proxies');
             }
         }
@@ -211,63 +279,76 @@ class ProxiesController extends BaseController {
      * @param int $id ID прокси
      */
     public function check($id = null) {
-        // Проверяем ID
-        if (empty($id)) {
+        try {
+            // Проверяем ID
+            if (empty($id)) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'ID прокси не указан'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'ID прокси не указан';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Получаем данные прокси
+            $proxy = $this->db->fetchOne("
+                SELECT ip, port, username, password, protocol 
+                FROM proxies 
+                WHERE id = ?
+            ", [$id]);
+            
+            if (!$proxy) {
+                if ($this->isAjax()) {
+                    $this->jsonResponse([
+                        'success' => false,
+                        'message' => 'Прокси не найден'
+                    ]);
+                } else {
+                    $_SESSION['error'] = 'Прокси не найден';
+                    $this->redirect('/proxies');
+                }
+                return;
+            }
+            
+            // Проверяем прокси
+            $checkResult = $this->checkProxyConnection($proxy);
+            
+            // Обновляем статус в базе данных
+            $status = $checkResult ? 'working' : 'failed';
+            $this->db->update('proxies', [
+                'status' => $status,
+                'last_check' => date('Y-m-d H:i:s')
+            ], 'id = ?', [$id]);
+            
+            // Отправляем ответ
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => $checkResult,
+                    'message' => $checkResult ? 'Прокси работает' : 'Прокси не работает'
+                ]);
+            } else {
+                if ($checkResult) {
+                    $_SESSION['success'] = 'Прокси работает';
+                } else {
+                    $_SESSION['error'] = 'Прокси не работает';
+                }
+                $this->redirect('/proxies');
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
             if ($this->isAjax()) {
                 $this->jsonResponse([
                     'success' => false,
-                    'message' => 'ID прокси не указан'
+                    'message' => 'Ошибка при проверке прокси: ' . $e->getMessage()
                 ]);
             } else {
-                $_SESSION['error'] = 'ID прокси не указан';
+                $_SESSION['error'] = 'Ошибка при проверке прокси: ' . $e->getMessage();
                 $this->redirect('/proxies');
             }
-            return;
-        }
-        
-        // Получаем данные прокси
-        $proxy = $this->db->fetchOne("
-            SELECT ip, port, username, password, protocol 
-            FROM proxies 
-            WHERE id = ?
-        ", [$id]);
-        
-        if (!$proxy) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Прокси не найден'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Прокси не найден';
-                $this->redirect('/proxies');
-            }
-            return;
-        }
-        
-        // Проверяем прокси
-        $checkResult = $this->checkProxyConnection($proxy);
-        
-        // Обновляем статус в базе данных
-        $status = $checkResult ? 'working' : 'failed';
-        $this->db->update('proxies', [
-            'status' => $status,
-            'last_check' => date('Y-m-d H:i:s')
-        ], 'id = ?', [$id]);
-        
-        // Отправляем ответ
-        if ($this->isAjax()) {
-            $this->jsonResponse([
-                'success' => $checkResult,
-                'message' => $checkResult ? 'Прокси работает' : 'Прокси не работает'
-            ]);
-        } else {
-            if ($checkResult) {
-                $_SESSION['success'] = 'Прокси работает';
-            } else {
-                $_SESSION['error'] = 'Прокси не работает';
-            }
-            $this->redirect('/proxies');
         }
     }
     
