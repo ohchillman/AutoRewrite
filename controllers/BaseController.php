@@ -24,8 +24,9 @@ class BaseController {
      * @param array $data Данные для представления
      */
     protected function render($view, $data = []) {
-        // Если это AJAX запрос, то не рендерим представление, а возвращаем ошибку в JSON
-        if ($this->isAjax()) {
+        // Если это AJAX запрос к основному эндпоинту (index), то возвращаем ошибку в JSON
+        // Но позволяем AJAX запросам к другим эндпоинтам (add, delete, check) проходить дальше
+        if ($this->isAjax() && $this->isIndexEndpoint()) {
             $this->jsonResponse([
                 'success' => false,
                 'message' => 'Неверный запрос. Этот эндпоинт не предназначен для AJAX запросов.'
@@ -34,6 +35,21 @@ class BaseController {
         }
         
         $this->view->render($view, $data);
+    }
+    
+    /**
+     * Проверяет, является ли текущий запрос запросом к основному эндпоинту (index)
+     * 
+     * @return bool Является ли запрос к основному эндпоинту
+     */
+    protected function isIndexEndpoint() {
+        $uri = $_SERVER['REQUEST_URI'];
+        $segments = explode('/', trim(parse_url($uri, PHP_URL_PATH), '/'));
+        
+        // Если URL содержит только один сегмент (например, 'proxies'), 
+        // или второй сегмент пустой, то это запрос к index
+        return count($segments) <= 1 || 
+               (count($segments) == 2 && empty($segments[1]));
     }
     
     /**
