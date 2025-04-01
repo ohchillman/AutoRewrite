@@ -34,6 +34,15 @@ class View {
      * @param array $data Данные для представления
      */
     public function render($view, $data = []) {
+        // Проверяем, является ли запрос AJAX
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        
+        // Логируем начало рендеринга для AJAX-запросов
+        if ($isAjax && function_exists('logOutputBuffer')) {
+            logOutputBuffer('before_view_render');
+        }
+        
         // Объединяем данные
         $this->data = array_merge($this->data, $data);
         
@@ -56,6 +65,18 @@ class View {
         
         // Получаем содержимое буфера
         $content = ob_get_clean();
+        
+        // Логируем после рендеринга представления для AJAX-запросов
+        if ($isAjax && function_exists('logOutputBuffer')) {
+            logOutputBuffer('after_view_render');
+        }
+        
+        // Для AJAX-запросов не используем шаблон
+        if ($isAjax) {
+            // Выводим содержимое без шаблона
+            echo $content;
+            return;
+        }
         
         // Проверяем, нужно ли подключать шаблон
         if (isset($this->data['layout'])) {
