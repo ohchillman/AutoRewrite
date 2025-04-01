@@ -54,9 +54,14 @@ class BaseController {
      * @param int $statusCode HTTP код ответа
      */
     protected function jsonResponse($data, $statusCode = 200) {
+        // Очищаем все предыдущие буферы вывода
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
         http_response_code($statusCode);
-        header('Content-Type: application/json');
-        echo json_encode($data);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;
     }
     

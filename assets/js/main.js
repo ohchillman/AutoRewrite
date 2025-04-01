@@ -50,14 +50,35 @@ function setupAjaxForms() {
                 }
             })
             .then(response => {
-                // Проверяем тип ответа
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    return response.json();
-                } else {
-                    // Если ответ не JSON, выбрасываем ошибку
-                    throw new Error('Получен неверный формат ответа от сервера');
-                }
+                // Расширенное логирование для отладки
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
+                
+                // Клонируем ответ для получения текста
+                return response.clone().text().then(text => {
+                    console.log('Raw response text:', text.substring(0, 500));
+                    
+                    // Проверяем тип ответа
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        try {
+                            return response.json();
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
+                        }
+                    } else {
+                        // Если ответ не JSON, пробуем распарсить его как JSON
+                        try {
+                            const jsonData = JSON.parse(text);
+                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
+                            return jsonData;
+                        } catch (e) {
+                            console.error('Failed to parse as JSON:', e);
+                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
+                        }
+                    }
+                });
             })
             .then(data => {
                 // Скрываем индикатор загрузки
@@ -94,7 +115,7 @@ function setupAjaxForms() {
                 // Скрываем индикатор загрузки
                 hideLoading();
                 
-                // Показываем сообщение об ошибке
+                // Показываем сообщение об ошибке с подробностями
                 showToast('error', 'Произошла ошибка при отправке формы: ' + error.message);
                 console.error('Form submission error:', error);
             });
@@ -124,14 +145,35 @@ function setupProxyChecking() {
                 }
             })
             .then(response => {
-                // Проверяем тип ответа
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    return response.json();
-                } else {
-                    // Если ответ не JSON, выбрасываем ошибку
-                    throw new Error('Получен неверный формат ответа от сервера');
-                }
+                // Расширенное логирование для отладки
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
+                
+                // Клонируем ответ для получения текста
+                return response.clone().text().then(text => {
+                    console.log('Raw response text:', text.substring(0, 500));
+                    
+                    // Проверяем тип ответа
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        try {
+                            return response.json();
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
+                        }
+                    } else {
+                        // Если ответ не JSON, пробуем распарсить его как JSON
+                        try {
+                            const jsonData = JSON.parse(text);
+                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
+                            return jsonData;
+                        } catch (e) {
+                            console.error('Failed to parse as JSON:', e);
+                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
+                        }
+                    }
+                });
             })
             .then(data => {
                 // Обновляем статус прокси
@@ -154,7 +196,7 @@ function setupProxyChecking() {
                 this.innerHTML = 'Проверить';
                 this.disabled = false;
                 
-                // Показываем сообщение об ошибке
+                // Показываем сообщение об ошибке с подробностями
                 showToast('error', 'Произошла ошибка при проверке прокси: ' + error.message);
                 console.error('Proxy check error:', error);
             });
@@ -195,14 +237,35 @@ function setupDeleteConfirmation() {
                     }
                 })
                 .then(response => {
-                    // Проверяем тип ответа
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        return response.json();
-                    } else {
-                        // Если ответ не JSON, выбрасываем ошибку
-                        throw new Error('Получен неверный формат ответа от сервера');
-                    }
+                    // Расширенное логирование для отладки
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
+                    
+                    // Клонируем ответ для получения текста
+                    return response.clone().text().then(text => {
+                        console.log('Raw response text:', text.substring(0, 500));
+                        
+                        // Проверяем тип ответа
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            try {
+                                return response.json();
+                            } catch (e) {
+                                console.error('JSON parse error:', e);
+                                throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
+                            }
+                        } else {
+                            // Если ответ не JSON, пробуем распарсить его как JSON
+                            try {
+                                const jsonData = JSON.parse(text);
+                                console.log('Successfully parsed response as JSON despite incorrect Content-Type');
+                                return jsonData;
+                            } catch (e) {
+                                console.error('Failed to parse as JSON:', e);
+                                throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
+                            }
+                        }
+                    });
                 })
                 .then(data => {
                     // Скрываем индикатор загрузки
@@ -222,7 +285,7 @@ function setupDeleteConfirmation() {
                     // Скрываем индикатор загрузки
                     hideLoading();
                     
-                    // Показываем сообщение об ошибке
+                    // Показываем сообщение об ошибке с подробностями
                     showToast('error', 'Произошла ошибка при удалении: ' + error.message);
                     console.error('Delete error:', error);
                 });
@@ -258,14 +321,35 @@ function setupRewriteContent() {
                 }
             })
             .then(response => {
-                // Проверяем тип ответа
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    return response.json();
-                } else {
-                    // Если ответ не JSON, выбрасываем ошибку
-                    throw new Error('Получен неверный формат ответа от сервера');
-                }
+                // Расширенное логирование для отладки
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
+                
+                // Клонируем ответ для получения текста
+                return response.clone().text().then(text => {
+                    console.log('Raw response text:', text.substring(0, 500));
+                    
+                    // Проверяем тип ответа
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        try {
+                            return response.json();
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
+                        }
+                    } else {
+                        // Если ответ не JSON, пробуем распарсить его как JSON
+                        try {
+                            const jsonData = JSON.parse(text);
+                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
+                            return jsonData;
+                        } catch (e) {
+                            console.error('Failed to parse as JSON:', e);
+                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
+                        }
+                    }
+                });
             })
             .then(data => {
                 // Восстанавливаем кнопку
@@ -287,7 +371,7 @@ function setupRewriteContent() {
                 this.innerHTML = 'Реврайт';
                 this.disabled = false;
                 
-                // Показываем сообщение об ошибке
+                // Показываем сообщение об ошибке с подробностями
                 showToast('error', 'Произошла ошибка при реврайте: ' + error.message);
                 console.error('Rewrite error:', error);
             });
