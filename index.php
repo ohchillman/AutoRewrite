@@ -3,6 +3,34 @@
  * Входная точка приложения
  */
 
+// Обработка ошибок для AJAX-запросов
+function handleAjaxErrors() {
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        set_exception_handler(function($e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => 'Ошибка сервера: ' . $e->getMessage()
+            ]);
+            exit;
+        });
+        
+        set_error_handler(function($errno, $errstr, $errfile, $errline) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => 'Ошибка сервера: ' . $errstr
+            ]);
+            exit;
+        }, E_ALL);
+    }
+}
+
+// Регистрируем обработчик ошибок для AJAX-запросов
+handleAjaxErrors();
+
 // Подключаем конфигурацию
 require_once 'config/config.php';
 
