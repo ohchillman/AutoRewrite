@@ -1,9 +1,0 @@
-RewriteEngine On
-RewriteBase /
-
-# Если запрашиваемый файл или директория не существуют
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-# Перенаправляем все запросы на index.php
-RewriteRule ^(.*)$ index.php [QSA,L]

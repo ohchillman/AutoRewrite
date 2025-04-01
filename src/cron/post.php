@@ -7,6 +7,7 @@
 
 // Подключение необходимых файлов
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../utils/TwitterApiClient.php';
 require_once __DIR__ . '/../utils/LinkedInApiClient.php';
 require_once __DIR__ . '/../utils/YouTubeApiClient.php';

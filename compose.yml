@@ -1,14 +1,11 @@
-version: '3'
-
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    container_name: autorewrite
     ports:
-      - "80:80"
+      - "8888:80"
     volumes:
-      - ./:/var/www/html
+      - ./src:/app
     depends_on:
       - db
     environment:
@@ -17,6 +14,7 @@ services:
       - DB_USER=autorewrite
       - DB_PASS=autorewrite_password
       - DB_CHARSET=utf8mb4
+    # command: bash -c "composer install -d /app && supervisord"
     networks:
       - autorewrite-network
 

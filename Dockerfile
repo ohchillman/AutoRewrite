@@ -1,42 +1,26 @@
-FROM php:8.1-apache
+FROM webdevops/php-nginx:8.3-alpine
 
-# Установка зависимостей
-RUN apt-get update && apt-get install -y \
-    libzip-dev \
-    zip \
-    unzip \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    default-mysql-client \
-    cron \
-    && docker-php-ext-install pdo_mysql mysqli zip mbstring exif pcntl bcmath gd
+ENV PHP_DATE_TIMEZONE="Europe/Moscow" \
+    TZ=Europe/Moscow \
+    php.session.name=session \
+    fpm.pool.pm=ondemand \
+    fpm.pool.pm.max_children=100 \
+    fpm.pool.pm.max_requests=1000
 
-# Включение mod_rewrite для Apache
-RUN a2enmod rewrite
+# Скрываем версию NGINX
+RUN echo 'server_tokens off;' >> /opt/docker/etc/nginx/main.conf
 
-# Установка рабочей директории
-WORKDIR /var/www/html
+# Копируем доп. настройки хоста NGINX в образ
+COPY nginx.conf /opt/docker/etc/nginx/vhost.common.d/nginx.conf
 
-# Копирование файлов проекта
-COPY . /var/www/html/
+COPY src /app
+RUN composer install -d /app || true
 
-# Установка прав доступа
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html
+# crontab
+RUN (crontab -l 2>/dev/null; echo '0 * * * * curl -s localhost/cron/parse.php') | crontab -
+RUN (crontab -l 2>/dev/null; echo '0 */2 * * * curl -s localhost/cron/rewrite.php') | crontab -
+RUN (crontab -l 2>/dev/null; echo '0 */3 * * * curl -s localhost/cron/post.php') | crontab -
 
-# Настройка cron задач
-COPY docker/crontab /etc/cron.d/autorewrite-cron
-RUN chmod 0644 /etc/cron.d/autorewrite-cron \
-    && crontab /etc/cron.d/autorewrite-cron
-
-# Настройка Apache
-COPY docker/000-default.conf /etc/apache2/sites-available/000-default.conf
-
-# Экспозиция порта
 EXPOSE 80
 
-# Запуск Apache и cron
-CMD service cron start && apache2-foreground
+CMD ["supervisord"]

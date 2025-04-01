@@ -6,7 +6,7 @@ class Logger {
     /**
      * Путь к директории с логами
      */
-    private static $logDir = '/tmp/autorewrite_logs';
+    private static $logDir = '/app/logs';
     
     /**
      * Записать сообщение в лог
