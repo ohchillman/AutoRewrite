@@ -77,7 +77,17 @@ class Router {
      * @param string $message Сообщение об ошибке
      */
     private function handleError($code, $message) {
-        if (DEBUG) {
+        // Проверяем, является ли запрос AJAX
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        
+        if ($isAjax) {
+            // Для AJAX запросов возвращаем JSON с ошибкой
+            http_response_code($code);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => "Ошибка {$code}: {$message}"]);
+            exit;
+        } else if (DEBUG) {
             die("Ошибка {$code}: {$message}");
         } else {
             // В продакшене показываем пользовательскую страницу ошибки

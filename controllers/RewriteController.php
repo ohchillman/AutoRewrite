@@ -182,7 +182,7 @@ class RewriteController extends BaseController {
     /**
      * Публикация контента в аккаунт
      */
-    public function post() {
+    public function publishPost() {
         // Проверяем, что запрос отправлен методом POST
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('/rewrite');
