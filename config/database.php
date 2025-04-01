@@ -104,4 +104,67 @@ class Database {
         $stmt = $this->query($sql, $params);
         return $stmt->rowCount();
     }
+    
+    /**
+     * Получить все записи из таблицы
+     * 
+     * @param string $table Имя таблицы
+     * @param array $where Условия выборки в формате ['column' => 'value']
+     * @param string $orderBy Сортировка (например, 'id DESC')
+     * @param int $limit Ограничение количества записей
+     * @return array Массив записей
+     */
+    public function getAll($table, $where = [], $orderBy = '', $limit = 0) {
+        $sql = "SELECT * FROM {$table}";
+        $params = [];
+        
+        // Добавляем условия WHERE, если они есть
+        if (!empty($where)) {
+            $whereConditions = [];
+            foreach ($where as $column => $value) {
+                $whereConditions[] = "{$column} = ?";
+                $params[] = $value;
+            }
+            $sql .= " WHERE " . implode(' AND ', $whereConditions);
+        }
+        
+        // Добавляем сортировку, если она указана
+        if (!empty($orderBy)) {
+            $sql .= " ORDER BY {$orderBy}";
+        }
+        
+        // Добавляем ограничение, если оно указано
+        if ($limit > 0) {
+            $sql .= " LIMIT {$limit}";
+        }
+        
+        return $this->fetchAll($sql, $params);
+    }
+    
+    /**
+     * Получить одну запись из таблицы
+     * 
+     * @param string $table Имя таблицы
+     * @param array $where Условия выборки в формате ['column' => 'value']
+     * @return array|false Запись или false, если запись не найдена
+     */
+    public function get($table, $where = []) {
+        $sql = "SELECT * FROM {$table}";
+        $params = [];
+        
+        // Добавляем условия WHERE, если они есть
+        if (!empty($where)) {
+            $whereConditions = [];
+            foreach ($where as $column => $value) {
+                $whereConditions[] = "{$column} = ?";
+                $params[] = $value;
+            }
+            $sql .= " WHERE " . implode(' AND ', $whereConditions);
+        }
+        
+        // Ограничиваем выборку одной записью
+        $sql .= " LIMIT 1";
+        
+        return $this->fetchOne($sql, $params);
+    }
 }
