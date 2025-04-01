@@ -6,7 +6,7 @@ class Logger {
     /**
      * Путь к директории с логами
      */
-    private static $logDir = '/var/www/html/logs';
+    private static $logDir = '/tmp/autorewrite_logs';
     
     /**
      * Записать сообщение в лог
@@ -18,7 +18,10 @@ class Logger {
     public static function log($message, $level = 'info', $logFile = 'app') {
         // Создаем директорию для логов, если она не существует
         if (!file_exists(self::$logDir)) {
-            mkdir(self::$logDir, 0777, true);
+            if (!@mkdir(self::$logDir, 0777, true)) {
+                error_log("Не удалось создать директорию для логов: " . self::$logDir);
+                return;
+            }
         }
         
         // Формируем путь к файлу лога
@@ -28,7 +31,9 @@ class Logger {
         $logString = '[' . date('Y-m-d H:i:s') . '] [' . strtoupper($level) . '] ' . $message . PHP_EOL;
         
         // Записываем в файл
-        file_put_contents($logFilePath, $logString, FILE_APPEND);
+        if (@file_put_contents($logFilePath, $logString, FILE_APPEND) === false) {
+            error_log("Не удалось записать в лог-файл: " . $logFilePath);
+        }
     }
     
     /**
