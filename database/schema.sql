@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Таблица для прокси
 CREATE TABLE IF NOT EXISTS proxies (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
     ip VARCHAR(255) NOT NULL,
     port INT NOT NULL,
     username VARCHAR(255),
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     is_active BOOLEAN DEFAULT TRUE,
     last_check TIMESTAMP NULL,
     status ENUM('working', 'failed', 'unchecked') DEFAULT 'unchecked',
+    ip_change_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
