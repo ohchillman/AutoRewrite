@@ -29,12 +29,8 @@
                                 <label for="source_type" class="form-label">Тип источника</label>
                                 <select class="form-select" id="source_type" name="source_type" required>
                                     <option value="">Выберите тип источника</option>
-                                    <option value="twitter" <?php echo $source['source_type'] == 'twitter' ? 'selected' : ''; ?>>Twitter</option>
-                                    <option value="linkedin" <?php echo $source['source_type'] == 'linkedin' ? 'selected' : ''; ?>>LinkedIn</option>
-                                    <option value="youtube" <?php echo $source['source_type'] == 'youtube' ? 'selected' : ''; ?>>YouTube</option>
-                                    <option value="blog" <?php echo $source['source_type'] == 'blog' ? 'selected' : ''; ?>>Блог</option>
                                     <option value="rss" <?php echo $source['source_type'] == 'rss' ? 'selected' : ''; ?>>RSS-лента</option>
-                                    <option value="other" <?php echo $source['source_type'] == 'other' ? 'selected' : ''; ?>>Другое</option>
+                                    <option value="blog" <?php echo $source['source_type'] == 'blog' ? 'selected' : ''; ?>>Новостной сайт</option>
                                 </select>
                             </div>
                         </div>
@@ -64,49 +60,33 @@
                         <div class="col-md-4 d-flex align-items-end">
                             <div class="mb-3 w-100 text-end">
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save"></i> Сохранить источник
+                                    <i class="fas fa-save"></i> Сохранить изменения
                                 </button>
                             </div>
                         </div>
                     </div>
-
-                    <?php if ($source['source_type'] == 'twitter'): ?>
-                    <div class="row source-fields">
-                        <div class="col-md-12">
-                            <h6 class="mb-3">Дополнительные настройки для Twitter</h6>
-                        </div>
-                        <?php 
-                        $additionalData = !empty($source['additional_settings']) ? json_decode($source['additional_settings'], true) : [];
-                        ?>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="twitter_username" class="form-label">Имя пользователя</label>
-                                <input type="text" class="form-control" id="twitter_username" name="additional_settings[username]" value="<?php echo htmlspecialchars($additionalData['username'] ?? ''); ?>">
-                                <div class="form-text">Имя пользователя без @</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="twitter_count" class="form-label">Количество твитов</label>
-                                <input type="number" class="form-control" id="twitter_count" name="additional_settings[count]" min="1" max="100" value="<?php echo htmlspecialchars($additionalData['count'] ?? '20'); ?>">
-                                <div class="form-text">Количество твитов для получения</div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <?php if ($source['source_type'] == 'rss'): ?>
-                    <div class="row source-fields">
+                    
+                    <?php 
+                    // Декодируем дополнительные настройки
+                    $additionalSettings = !empty($source['additional_settings']) ? 
+                        json_decode($source['additional_settings'], true) : [];
+                    
+                    // Получаем значения настроек с значениями по умолчанию
+                    $items = $additionalSettings['items'] ?? 20;
+                    $fullContent = isset($additionalSettings['full_content']) ? 
+                        (bool)$additionalSettings['full_content'] : false;
+                    $selectors = $additionalSettings['selectors'] ?? [];
+                    ?>
+                    
+                    <!-- Дополнительные настройки для RSS -->
+                    <div class="row source-fields rss-fields <?php echo $source['source_type'] == 'rss' ? '' : 'd-none'; ?>">
                         <div class="col-md-12">
                             <h6 class="mb-3">Дополнительные настройки для RSS</h6>
                         </div>
-                        <?php 
-                        $additionalData = !empty($source['additional_settings']) ? json_decode($source['additional_settings'], true) : [];
-                        ?>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="rss_items" class="form-label">Количество записей</label>
-                                <input type="number" class="form-control" id="rss_items" name="additional_settings[items]" min="1" max="100" value="<?php echo htmlspecialchars($additionalData['items'] ?? '20'); ?>">
+                                <input type="number" class="form-control" id="rss_items" name="additional_settings[items]" min="1" max="100" value="<?php echo $items; ?>">
                                 <div class="form-text">Количество записей для получения</div>
                             </div>
                         </div>
@@ -114,18 +94,89 @@
                             <div class="mb-3">
                                 <label for="rss_full_content" class="form-label">Получать полный контент</label>
                                 <select class="form-select" id="rss_full_content" name="additional_settings[full_content]">
-                                    <option value="1" <?php echo isset($additionalData['full_content']) && $additionalData['full_content'] == 1 ? 'selected' : ''; ?>>Да</option>
-                                    <option value="0" <?php echo isset($additionalData['full_content']) && $additionalData['full_content'] == 0 ? 'selected' : ''; ?>>Нет</option>
+                                    <option value="1" <?php echo $fullContent ? 'selected' : ''; ?>>Да</option>
+                                    <option value="0" <?php echo !$fullContent ? 'selected' : ''; ?>>Нет</option>
                                 </select>
-                                <div class="form-text">Пытаться получить полный контент статьи</div>
+                                <div class="form-text">Пытаться получить полный контент статьи (может занять больше времени)</div>
                             </div>
                         </div>
                     </div>
-                    <?php endif; ?>
 
-                    <!-- Аналогично добавьте дополнительные поля для других типов источников -->
+                    <!-- Дополнительные настройки для новостного сайта -->
+                    <div class="row source-fields blog-fields <?php echo $source['source_type'] == 'blog' ? '' : 'd-none'; ?>">
+                        <div class="col-md-12">
+                            <h6 class="mb-3">Дополнительные настройки для новостного сайта</h6>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="blog_items" class="form-label">Количество записей</label>
+                                <input type="number" class="form-control" id="blog_items" name="additional_settings[items]" min="1" max="50" value="<?php echo $items; ?>">
+                                <div class="form-text">Количество записей для получения</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="blog_full_content" class="form-label">Получать полный контент</label>
+                                <select class="form-select" id="blog_full_content" name="additional_settings[full_content]">
+                                    <option value="1" <?php echo $fullContent ? 'selected' : ''; ?>>Да</option>
+                                    <option value="0" <?php echo !$fullContent ? 'selected' : ''; ?>>Нет</option>
+                                </select>
+                                <div class="form-text">Пытаться получить полный контент статьи (может занять больше времени)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="selectors_container" class="form-label">Селекторы для парсинга (опционально)</label>
+                                <input type="text" class="form-control mb-2" id="selectors_container" name="additional_settings[selectors][container]" placeholder="XPath селектор для контейнеров статей, например: //article" value="<?php echo htmlspecialchars($selectors['container'] ?? ''); ?>">
+                                <input type="text" class="form-control mb-2" id="selectors_title" name="additional_settings[selectors][title]" placeholder="XPath селектор для заголовка, например: .//h1 | .//h2" value="<?php echo htmlspecialchars($selectors['title'] ?? ''); ?>">
+                                <input type="text" class="form-control mb-2" id="selectors_content" name="additional_settings[selectors][content]" placeholder="XPath селектор для контента, например: .//div[contains(@class, 'content')]" value="<?php echo htmlspecialchars($selectors['content'] ?? ''); ?>">
+                                <input type="text" class="form-control mb-2" id="selectors_link" name="additional_settings[selectors][link]" placeholder="XPath селектор для ссылки, например: .//a[contains(@class, 'read-more')] | .//h2/a" value="<?php echo htmlspecialchars($selectors['link'] ?? ''); ?>">
+                                <input type="text" class="form-control" id="selectors_date" name="additional_settings[selectors][date]" placeholder="XPath селектор для даты, например: .//time | .//span[contains(@class, 'date')]" value="<?php echo htmlspecialchars($selectors['date'] ?? ''); ?>">
+                                <div class="form-text">Оставьте пустыми для автоматического определения</div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Уведомления об успехе/ошибке -->
+<?php if (isset($_SESSION['success'])): ?>
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['error'])): ?>
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+<?php endif; ?>
+
+<script>
+// Показывать/скрывать поля в зависимости от типа источника
+document.addEventListener('DOMContentLoaded', function() {
+    const sourceTypeSelect = document.getElementById('source_type');
+    if (sourceTypeSelect) {
+        sourceTypeSelect.addEventListener('change', function() {
+            // Скрываем все поля
+            document.querySelectorAll('.source-fields').forEach(function(field) {
+                field.classList.add('d-none');
+            });
+            
+            // Показываем нужные поля в зависимости от типа источника
+            const sourceType = this.value.toLowerCase();
+            
+            if (sourceType === 'rss') {
+                document.querySelector('.rss-fields').classList.remove('d-none');
+            } else if (sourceType === 'blog') {
+                document.querySelector('.blog-fields').classList.remove('d-none');
+            }
+        });
+    }
+});
+</script>

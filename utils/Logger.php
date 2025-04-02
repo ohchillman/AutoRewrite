@@ -72,8 +72,14 @@ class Logger {
      * @param string $message Сообщение для записи
      * @param string $logFile Имя файла лога (без расширения)
      */
-    public static function debug($message, $logFile = 'app') {
-        self::log($message, 'debug', $logFile);
+    public static function debug($message, $logFile = 'app', $context = []) {
+        $logString = $message;
+        
+        if (!empty($context)) {
+            $logString .= "\n" . print_r($context, true);
+        }
+        
+        self::log($logString, 'debug', $logFile);
     }
     
     /**

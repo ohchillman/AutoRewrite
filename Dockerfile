@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     default-mysql-client \
     cron \
+    libcurl4-openssl-dev \
     && docker-php-ext-install pdo_mysql mysqli zip mbstring exif pcntl bcmath gd
 
 # Включение mod_rewrite для Apache

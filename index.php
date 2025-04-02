@@ -73,6 +73,7 @@ $router->addRoute('proxies/delete', 'ProxiesController', 'delete');
 $router->addRoute('proxies/check', 'ProxiesController', 'check');
 $router->addRoute('proxies/toggle', 'ProxiesController', 'toggle');
 $router->addRoute('proxies/changeIp', 'ProxiesController', 'changeIp');
+$router->addRoute('proxies/edit', 'ProxiesController', 'edit');
 
 $router->addRoute('accounts', 'AccountsController', 'index');
 $router->addRoute('test', 'TestController', 'index');
@@ -89,9 +90,6 @@ $router->addRoute('parsing/edit', 'ParsingController', 'edit');
 $router->addRoute('parsing/delete', 'ParsingController', 'delete');
 $router->addRoute('parsing/toggle', 'ParsingController', 'toggle');
 $router->addRoute('parsing/parse', 'ParsingController', 'parse');
-
-
-
 
 // Обрабатываем запрос
 $router->dispatch();

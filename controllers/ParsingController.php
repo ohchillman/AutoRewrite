@@ -48,6 +48,17 @@ class ParsingController extends BaseController {
                 return $this->handleAjaxError('Необходимо заполнить поля Название, URL и Тип источника');
             }
             
+            // Валидация URL
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return $this->handleAjaxError('Некорректный URL источника');
+            }
+            
+            // Проверяем, что тип источника допустимый
+            $validSourceTypes = ['rss', 'blog'];
+            if (!in_array($sourceType, $validSourceTypes)) {
+                return $this->handleAjaxError('Недопустимый тип источника. Доступны только RSS и Blog');
+            }
+            
             // Подготавливаем данные для вставки
             $sourceData = [
                 'name' => $name,
@@ -64,6 +75,7 @@ class ParsingController extends BaseController {
             
             // Проверяем результат
             if ($sourceId) {
+                Logger::info("Added new parsing source: {$name} ({$url}), Type: {$sourceType}", 'parsing');
                 return $this->handleSuccess('Источник успешно добавлен', null, true);
             } else {
                 return $this->handleAjaxError('Ошибка при добавлении источника');
@@ -96,6 +108,7 @@ class ParsingController extends BaseController {
             
             // Проверяем результат
             if ($result) {
+                Logger::info("Deleted parsing source ID: {$id}", 'parsing');
                 return $this->handleSuccess('Источник успешно удален', null, true);
             } else {
                 return $this->handleAjaxError('Ошибка при удалении источника');
@@ -145,14 +158,17 @@ class ParsingController extends BaseController {
             
             // Проверяем результат
             if ($result) {
+                $statusText = $newStatus ? 'активирован' : 'деактивирован';
+                Logger::info("Source ID: {$id} {$statusText}", 'parsing');
+                
                 if ($this->isAjax()) {
                     return $this->jsonResponse([
                         'success' => true,
-                        'message' => 'Статус источника изменен',
+                        'message' => "Источник успешно {$statusText}",
                         'refresh' => true
                     ]);
                 } else {
-                    $_SESSION['success'] = 'Статус источника изменен';
+                    $_SESSION['success'] = "Источник успешно {$statusText}";
                     $this->redirect('/parsing');
                     return;
                 }
@@ -182,7 +198,7 @@ class ParsingController extends BaseController {
      * 
      * @param int $id ID источника
      */
-    public function parse($id = null) {
+    public function parse($id) {
         // Проверяем ID
         if (empty($id)) {
             if ($this->isAjax()) {
@@ -197,8 +213,31 @@ class ParsingController extends BaseController {
         try {
             // Получаем данные источника
             $source = $this->db->fetchOne("
-                SELECT * FROM parsing_sources WHERE id = ?
+                SELECT 
+                    ps.*, 
+                    p.id as proxy_id, 
+                    p.ip as proxy_ip, 
+                    p.port as proxy_port, 
+                    p.username as proxy_username, 
+                    p.password as proxy_password,
+                    p.protocol as proxy_protocol,
+                    p.is_active as proxy_active
+                FROM parsing_sources ps
+                LEFT JOIN proxies p ON ps.proxy_id = p.id
+                WHERE ps.id = ?
             ", [$id]);
+
+            Logger::debug("Источник парсинга", 'parsing', [
+                'Source Details' => [
+                    'ID' => $source['id'],
+                    'URL' => $source['url'],
+                    'Proxy ID' => $source['proxy_id'],
+                    'Proxy IP' => $source['proxy_ip'],
+                    'Proxy Port' => $source['proxy_port'],
+                    'Proxy Protocol' => $source['proxy_protocol'],
+                    'Proxy Active' => $source['proxy_active']
+                ]
+            ]);
             
             if (!$source) {
                 if ($this->isAjax()) {
@@ -210,53 +249,153 @@ class ParsingController extends BaseController {
                 }
             }
             
-            // Здесь будет логика парсинга источника
-            // В реальном приложении это должно выполняться в фоновом режиме
-            // Для примера просто обновим время последнего парсинга
+            // Декодируем дополнительные настройки
+            $additionalSettings = !empty($source['additional_settings']) ? 
+                json_decode($source['additional_settings'], true) : [];
             
-            $result = $this->db->update('parsing_sources', [
-                'last_parsed' => date('Y-m-d H:i:s')
-            ], 'id = ?', [$id]);
+            // Определяем настройки для парсинга
+            $limit = $additionalSettings['items'] ?? 20;
+            $fetchFullContent = isset($additionalSettings['full_content']) ? 
+                (bool)$additionalSettings['full_content'] : false;
             
-            // Имитируем добавление контента
-            $contentId = $this->db->insert('original_content', [
-                'source_id' => $id,
-                'title' => 'Пример контента из ' . $source['name'],
-                'content' => 'Это пример контента, который был бы получен при парсинге источника ' . $source['name'] . '. В реальном приложении здесь будет настоящий контент из источника.',
-                'url' => $source['url'],
-                'author' => 'Система',
-                'published_date' => date('Y-m-d H:i:s'),
-                'parsed_at' => date('Y-m-d H:i:s')
-            ]);
-            
-            // Отправляем ответ
-            if ($result && $contentId) {
-                if ($this->isAjax()) {
-                    return $this->jsonResponse([
-                        'success' => true,
-                        'message' => 'Парсинг источника выполнен успешно',
-                        'refresh' => true
-                    ]);
-                } else {
-                    $_SESSION['success'] = 'Парсинг источника выполнен успешно';
-                    $this->redirect('/parsing');
-                    return;
-                }
+            $proxyConfig = null;
+            if (!empty($source['proxy_id']) && 
+                !empty($source['proxy_ip']) && 
+                $source['proxy_active'] == 1) {
+                $proxyConfig = [
+                    'host' => $source['proxy_ip'],
+                    'port' => $source['proxy_port'],
+                    'username' => $source['proxy_username'] ?? null,
+                    'password' => $source['proxy_password'] ?? null,
+                    'protocol' => $source['proxy_protocol'] ?? 'http'
+                ];
             } else {
-                if ($this->isAjax()) {
-                    return $this->handleAjaxError('Ошибка при парсинге источника');
-                } else {
-                    $_SESSION['error'] = 'Ошибка при парсинге источника';
-                    $this->redirect('/parsing');
-                    return;
+                Logger::warning("Прокси не может быть использован", 'parsing', [
+                    'Proxy ID' => $source['proxy_id'],
+                    'Proxy IP' => $source['proxy_ip'],
+                    'Proxy Active' => $source['proxy_active']
+                ]);
+            }
+            
+            // Создаем парсер
+            $parser = new ContentParser();
+            
+            // Выполняем парсинг в зависимости от типа источника
+            $items = [];
+            switch ($source['source_type']) {
+                case 'rss':
+                    Logger::info("Parsing RSS feed: {$source['url']}", 'parsing');
+                    $items = $parser->parseRss(
+                        $source['url'], 
+                        $limit, 
+                        $fetchFullContent,
+                        $proxyConfig
+                    );
+                    break;
+                
+                case 'blog':
+                    Logger::info("Parsing blog/news website: {$source['url']}", 'parsing');
+                    $selectors = isset($additionalSettings['selectors']) ? 
+                        $additionalSettings['selectors'] : [];
+                    $items = $parser->parseBlog(
+                        $source['url'], 
+                        $selectors, 
+                        $limit, 
+                        $fetchFullContent
+                    );
+                    break;
+                
+                default:
+                    throw new Exception("Неподдерживаемый тип источника: {$source['source_type']}");
+            }
+            
+            // Проверяем на ошибки
+            if (isset($items['error'])) {
+                throw new Exception("Ошибка при парсинге: " . $items['error']);
+            }
+            
+            Logger::info('Найдено ' . count($items) . ' элементов из источника: ' . $source['name'], 'parsing');
+            
+            // Сохранение полученных записей в базу данных
+            $savedCount = 0;
+            foreach ($items as $item) {
+                // Проверка на пустые или невалидные данные
+                if (empty($item['title']) || empty($item['link'])) {
+                    Logger::warning("Пропуск элемента с пустым заголовком или ссылкой", 'parsing');
+                    continue;
+                }
+                
+                // Проверка, существует ли уже такая запись
+                $exists = $this->db->fetchColumn(
+                    "SELECT COUNT(*) FROM original_content WHERE url = ? OR (title = ? AND source_id = ?)", 
+                    [$item['link'], $item['title'], $source['id']]
+                );
+                
+                if ($exists) {
+                    Logger::debug("Элемент уже существует: " . $item['title'], 'parsing');
+                    continue;
+                }
+                
+                try {
+                    // Подготовка данных для сохранения
+                    $data = [
+                        'source_id' => $source['id'],
+                        'title' => $item['title'],
+                        'content' => $item['description'],
+                        'url' => $item['link'],
+                        'author' => $item['author'] ?? '',
+                        'published_date' => date('Y-m-d H:i:s', $item['timestamp']),
+                        'parsed_at' => date('Y-m-d H:i:s'),
+                        'is_processed' => 0,
+                        'media_urls' => $this->extractMediaUrls($item['description'])
+                    ];
+                    
+                    // Сохраняем контент
+                    $contentId = $this->db->insert('original_content', $data);
+                    
+                    if ($contentId) {
+                        $savedCount++;
+                        Logger::info("Сохранен новый элемент с ID: {$contentId}, Заголовок: {$item['title']}", 'parsing');
+                    } else {
+                        Logger::warning("Не удалось сохранить элемент: {$item['title']}", 'parsing');
+                    }
+                } catch (Exception $e) {
+                    Logger::error("Ошибка сохранения элемента: " . $e->getMessage(), 'parsing');
                 }
             }
-        } catch (Exception $e) {
-            Logger::error('Ошибка при парсинге источника: ' . $e->getMessage(), 'parsing');
+            
+            // Обновляем время последнего парсинга
+            $this->db->update('parsing_sources', 
+                ['last_parsed' => date('Y-m-d H:i:s')], 
+                'id = ?', 
+                [$source['id']]
+            );
+            
+            // Формируем ответ
+            $message = "Парсинг источника \"{$source['name']}\" выполнен успешно. Добавлено записей: {$savedCount}";
+            Logger::info($message, 'parsing');
+            
             if ($this->isAjax()) {
-                return $this->handleAjaxError('Ошибка при парсинге источника: ' . $e->getMessage(), 500);
+                return $this->jsonResponse([
+                    'success' => true,
+                    'message' => $message,
+                    'savedCount' => $savedCount,
+                    'refresh' => true
+                ]);
             } else {
-                $_SESSION['error'] = 'Ошибка при парсинге источника: ' . $e->getMessage();
+                $_SESSION['success'] = $message;
+                $this->redirect('/parsing');
+                return;
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
+            $errorMessage = 'Ошибка при парсинге источника: ' . $e->getMessage();
+            Logger::error($errorMessage, 'parsing');
+            
+            if ($this->isAjax()) {
+                return $this->handleAjaxError($errorMessage, 500);
+            } else {
+                $_SESSION['error'] = $errorMessage;
                 $this->redirect('/parsing');
                 return;
             }
@@ -291,6 +430,17 @@ class ParsingController extends BaseController {
                     return $this->handleAjaxError('Необходимо заполнить поля Название, URL и Тип источника');
                 }
                 
+                // Валидация URL
+                if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                    return $this->handleAjaxError('Некорректный URL источника');
+                }
+                
+                // Проверяем, что тип источника допустимый
+                $validSourceTypes = ['rss', 'blog'];
+                if (!in_array($sourceType, $validSourceTypes)) {
+                    return $this->handleAjaxError('Недопустимый тип источника. Доступны только RSS и Blog');
+                }
+                
                 // Подготавливаем данные для обновления
                 $sourceData = [
                     'name' => $name,
@@ -306,6 +456,8 @@ class ParsingController extends BaseController {
                 
                 // Проверяем результат
                 if ($result !== false) {
+                    Logger::info("Updated parsing source ID: {$id}", 'parsing');
+                    
                     if ($this->isAjax()) {
                         return $this->jsonResponse([
                             'success' => true,
@@ -351,6 +503,24 @@ class ParsingController extends BaseController {
             'source' => $source,
             'proxies' => $proxies
         ]);
+    }
+    
+    /**
+     * Извлекает URLs медиа-контента из HTML
+     * 
+     * @param string $content HTML-контент
+     * @return string JSON-строка с URLs изображений
+     */
+    private function extractMediaUrls($content) {
+        $mediaUrls = [];
+        
+        // Извлечение URL изображений
+        preg_match_all('/<img[^>]+src=([\'"])(?<src>.+?)\1[^>]*>/i', $content, $matches);
+        if (isset($matches['src']) && !empty($matches['src'])) {
+            $mediaUrls['images'] = array_values(array_unique($matches['src']));
+        }
+        
+        return !empty($mediaUrls) ? json_encode($mediaUrls) : null;
     }
     
     /**
