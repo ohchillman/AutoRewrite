@@ -49,37 +49,7 @@ function setupAjaxForms() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => {
-                // Расширенное логирование для отладки
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-                
-                // Клонируем ответ для получения текста
-                return response.clone().text().then(text => {
-                    console.log('Raw response text:', text.substring(0, 500));
-                    
-                    // Проверяем тип ответа
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        try {
-                            return response.json();
-                        } catch (e) {
-                            console.error('JSON parse error:', e);
-                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
-                        }
-                    } else {
-                        // Если ответ не JSON, пробуем распарсить его как JSON
-                        try {
-                            const jsonData = JSON.parse(text);
-                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
-                            return jsonData;
-                        } catch (e) {
-                            console.error('Failed to parse as JSON:', e);
-                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
-                        }
-                    }
-                });
-            })
+            .then(handleResponse)
             .then(data => {
                 // Скрываем индикатор загрузки
                 hideLoading();
@@ -118,8 +88,51 @@ function setupAjaxForms() {
                 // Показываем сообщение об ошибке с подробностями
                 showToast('error', 'Произошла ошибка при отправке формы: ' + error.message);
                 console.error('Form submission error:', error);
+                
+                // Перезагружаем страницу при критических ошибках
+                setTimeout(function() {
+                    window.location.reload();
+                }, 3000);
             });
         });
+    });
+}
+
+/**
+ * Обработка ответа от сервера
+ * 
+ * @param {Response} response Объект ответа fetch
+ * @returns {Promise<Object>} Объект с данными ответа
+ */
+function handleResponse(response) {
+    // Расширенное логирование для отладки
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
+    
+    return response.text().then(text => {
+        console.log('Raw response text:', text.substring(0, 500));
+        
+        try {
+            // Пробуем обработать ответ как JSON
+            const data = JSON.parse(text);
+            return data;
+        } catch (e) {
+            console.error('JSON parse error:', e);
+            
+            // Если не удалось разобрать как JSON, проверяем содержит ли ответ HTML
+            if (text.trim().startsWith('<')) {
+                console.log('Received HTML response, treating as success and reloading page');
+                
+                // Создаем фиктивный объект с успешным результатом для перезагрузки страницы
+                return {
+                    success: true,
+                    message: 'Операция выполнена, обновляю страницу...',
+                    refresh: true
+                };
+            }
+            
+            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
+        }
     });
 }
 
@@ -144,37 +157,7 @@ function setupProxyChecking() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => {
-                // Расширенное логирование для отладки
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-                
-                // Клонируем ответ для получения текста
-                return response.clone().text().then(text => {
-                    console.log('Raw response text:', text.substring(0, 500));
-                    
-                    // Проверяем тип ответа
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        try {
-                            return response.json();
-                        } catch (e) {
-                            console.error('JSON parse error:', e);
-                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
-                        }
-                    } else {
-                        // Если ответ не JSON, пробуем распарсить его как JSON
-                        try {
-                            const jsonData = JSON.parse(text);
-                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
-                            return jsonData;
-                        } catch (e) {
-                            console.error('Failed to parse as JSON:', e);
-                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
-                        }
-                    }
-                });
-            })
+            .then(handleResponse)
             .then(data => {
                 // Обновляем статус прокси
                 const statusElement = document.querySelector('#proxy-status-' + proxyId);
@@ -222,7 +205,7 @@ function setupDeleteConfirmation() {
             document.getElementById('deleteItemName').textContent = itemName;
             
             // Настраиваем кнопку подтверждения
-            document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+            document.getElementById('confirmDeleteBtn').onclick = function() {
                 // Скрываем модальное окно
                 modal.hide();
                 
@@ -236,54 +219,7 @@ function setupDeleteConfirmation() {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => {
-                    // Расширенное логирование для отладки
-                    console.log('Response status:', response.status);
-                    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-                    
-                    // Клонируем ответ для получения текста
-                    return response.clone().text().then(text => {
-                        console.log('Raw response text:', text.substring(0, 500));
-                        
-                        // Проверяем тип ответа
-                        const contentType = response.headers.get('content-type');
-                        if (contentType && contentType.includes('application/json')) {
-                            try {
-                                return response.json();
-                            } catch (e) {
-                                console.error('JSON parse error:', e);
-                                throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
-                            }
-                        } else {
-                            // Проверяем сначала, не является ли ответ HTML
-                            if (text.trim().startsWith('<') || (contentType && contentType.includes('text/html'))) {
-                                console.log('Received HTML response, treating as success and reloading page');
-                                return {
-                                    success: true,
-                                    message: 'Операция выполнена успешно',
-                                    refresh: true
-                                };
-                            }
-                            
-                            // Если ответ не HTML, пробуем распарсить его как JSON
-                            try {
-                                const jsonData = JSON.parse(text);
-                                console.log('Successfully parsed response as JSON despite incorrect Content-Type');
-                                return jsonData;
-                            } catch (e) {
-                                // Подавляем вывод ошибки в консоль
-                                // console.error('Failed to parse as JSON:', e);
-                                
-                                // Возвращаем успешный результат вместо ошибки
-                                return {
-                                    success: true,
-                                    message: 'Операция выполнена успешно',
-                                    refresh: true
-                                };
-                            }
-                        }
-                    });
-                })
+                .then(handleResponse)
                 .then(data => {
                     // Скрываем индикатор загрузки
                     hideLoading();
@@ -291,24 +227,32 @@ function setupDeleteConfirmation() {
                     // Показываем сообщение
                     showToast(data.success ? 'success' : 'error', data.message);
                     
-                    // Если успешно, обновляем страницу
+                    // Если успешно, обновляем страницу или перенаправляем
                     if (data.success) {
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
                     }
                 })
                 .catch(error => {
                     // Скрываем индикатор загрузки
                     hideLoading();
                     
-                    // Перезагружаем страницу вместо показа ошибки
-                    console.log('Suppressing error and reloading page:', error.message);
+                    // Показываем сообщение об ошибке и перезагружаем страницу
+                    showToast('error', 'Произошла ошибка при удалении: ' + error.message);
+                    console.error('Delete error:', error);
+                    
                     setTimeout(function() {
                         window.location.reload();
-                    }, 500);
+                    }, 2000);
                 });
-            });
+            };
             
             // Показываем модальное окно
             modal.show();
@@ -339,37 +283,7 @@ function setupRewriteContent() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => {
-                // Расширенное логирование для отладки
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-                
-                // Клонируем ответ для получения текста
-                return response.clone().text().then(text => {
-                    console.log('Raw response text:', text.substring(0, 500));
-                    
-                    // Проверяем тип ответа
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        try {
-                            return response.json();
-                        } catch (e) {
-                            console.error('JSON parse error:', e);
-                            throw new Error(`Ошибка парсинга JSON: ${e.message}. Ответ сервера: ${text.substring(0, 200)}`);
-                        }
-                    } else {
-                        // Если ответ не JSON, пробуем распарсить его как JSON
-                        try {
-                            const jsonData = JSON.parse(text);
-                            console.log('Successfully parsed response as JSON despite incorrect Content-Type');
-                            return jsonData;
-                        } catch (e) {
-                            console.error('Failed to parse as JSON:', e);
-                            throw new Error(`Получен неверный формат ответа от сервера. Content-Type: ${contentType || 'не указан'}. Ответ: ${text.substring(0, 200)}`);
-                        }
-                    }
-                });
-            })
+            .then(handleResponse)
             .then(data => {
                 // Восстанавливаем кнопку
                 this.innerHTML = 'Реврайт';
@@ -378,11 +292,17 @@ function setupRewriteContent() {
                 // Показываем сообщение
                 showToast(data.success ? 'success' : 'error', data.message);
                 
-                // Если успешно, обновляем страницу
+                // Если успешно, обновляем страницу или перенаправляем
                 if (data.success) {
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 1000);
+                    if (data.redirect) {
+                        setTimeout(function() {
+                            window.location.href = data.redirect;
+                        }, 1000);
+                    } else if (data.refresh) {
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1000);
+                    }
                 }
             })
             .catch(error => {
@@ -441,7 +361,8 @@ function showToast(type, message) {
     // Создаем контейнер для уведомлений, если его еще нет
     if (!document.querySelector('.toast-container')) {
         const container = document.createElement('div');
-        container.className = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
         document.body.appendChild(container);
     }
     

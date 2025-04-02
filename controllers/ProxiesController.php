@@ -27,27 +27,12 @@ class ProxiesController extends BaseController {
     public function add() {
         Logger::info('Начало процесса добавления прокси', 'proxies');
         
-        // Проверяем, что это AJAX запрос
-        if ($this->isAjax()) {
-            // Заголовок Content-Type будет установлен в методе jsonResponse
-        }
-        
         try {
             // Проверяем, что запрос отправлен методом POST
             Logger::debug('Проверка метода запроса: ' . $_SERVER['REQUEST_METHOD'], 'proxies');
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if (!$this->isMethod('POST')) {
                 Logger::warning('Попытка доступа не через POST метод', 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => false,
-                        'message' => 'Метод не поддерживается',
-                        'debug' => ['method' => $_SERVER['REQUEST_METHOD']]
-                    ]);
-                } else {
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError('Метод не поддерживается', 405);
             }
             
             // Получаем данные из POST
@@ -73,25 +58,7 @@ class ProxiesController extends BaseController {
             if (empty($ip) || empty($port) || empty($protocol)) {
                 $errorMsg = 'Необходимо заполнить поля IP, порт и протокол';
                 Logger::warning($errorMsg, 'proxies');
-                
-                if ($this->isAjax()) {
-                    $response = [
-                        'success' => false,
-                        'message' => $errorMsg,
-                        'debug' => [
-                            'ip' => $ip,
-                            'port' => $port,
-                            'protocol' => $protocol,
-                            'stage' => 'validation_required_fields'
-                        ]
-                    ];
-                    Logger::debug('Отправка AJAX ответа: ' . json_encode($response), 'proxies');
-                    $this->jsonResponse($response);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError($errorMsg);
             }
             
             // Проверяем, что порт является числом
@@ -99,24 +66,7 @@ class ProxiesController extends BaseController {
             if (!is_numeric($port)) {
                 $errorMsg = 'Порт должен быть числом';
                 Logger::warning($errorMsg . ": $port", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $response = [
-                        'success' => false,
-                        'message' => $errorMsg,
-                        'debug' => [
-                            'port' => $port,
-                            'is_numeric' => is_numeric($port),
-                            'stage' => 'validation_port_numeric'
-                        ]
-                    ];
-                    Logger::debug('Отправка AJAX ответа: ' . json_encode($response), 'proxies');
-                    $this->jsonResponse($response);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError($errorMsg);
             }
             
             // Проверяем, что протокол допустимый
@@ -125,24 +75,7 @@ class ProxiesController extends BaseController {
             if (!in_array($protocol, $validProtocols)) {
                 $errorMsg = 'Недопустимый протокол';
                 Logger::warning($errorMsg . ": $protocol", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $response = [
-                        'success' => false,
-                        'message' => $errorMsg,
-                        'debug' => [
-                            'protocol' => $protocol,
-                            'valid_protocols' => $validProtocols,
-                            'stage' => 'validation_protocol'
-                        ]
-                    ];
-                    Logger::debug('Отправка AJAX ответа: ' . json_encode($response), 'proxies');
-                    $this->jsonResponse($response);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError($errorMsg);
             }
             
             // Подготавливаем данные для вставки
@@ -173,68 +106,17 @@ class ProxiesController extends BaseController {
             if ($proxyId) {
                 $successMsg = 'Прокси успешно добавлен';
                 Logger::info($successMsg . " (ID: $proxyId)", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $response = [
-                        'success' => true,
-                        'message' => $successMsg,
-                        'refresh' => true,
-                        'debug' => [
-                            'proxy_id' => $proxyId,
-                            'stage' => 'insert_success'
-                        ]
-                    ];
-                    Logger::debug('Отправка AJAX ответа: ' . json_encode($response), 'proxies');
-                    $this->jsonResponse($response);
-                } else {
-                    $_SESSION['success'] = $successMsg;
-                    $this->redirect('/proxies');
-                }
+                return $this->handleSuccess($successMsg, null, true);
             } else {
                 $errorMsg = 'Ошибка при добавлении прокси';
                 Logger::error($errorMsg, 'proxies');
-                
-                if ($this->isAjax()) {
-                    $response = [
-                        'success' => false,
-                        'message' => $errorMsg,
-                        'debug' => [
-                            'stage' => 'insert_failed',
-                            'proxy_data' => $proxyData
-                        ]
-                    ];
-                    Logger::debug('Отправка AJAX ответа: ' . json_encode($response), 'proxies');
-                    $this->jsonResponse($response);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
+                return $this->handleAjaxError($errorMsg);
             }
         } catch (Exception $e) {
             // Обработка исключений
             $errorMsg = 'Ошибка при добавлении прокси: ' . $e->getMessage();
             Logger::error($errorMsg . "\n" . $e->getTraceAsString(), 'proxies');
-            
-            if ($this->isAjax()) {
-                $response = [
-                    'success' => false,
-                    'message' => $errorMsg,
-                    'debug' => [
-                        'exception' => [
-                            'message' => $e->getMessage(),
-                            'code' => $e->getCode(),
-                            'file' => $e->getFile(),
-                            'line' => $e->getLine()
-                        ],
-                        'stage' => 'exception_caught'
-                    ]
-                ];
-                Logger::debug('Отправка AJAX ответа с ошибкой: ' . json_encode($response), 'proxies');
-                $this->jsonResponse($response);
-            } else {
-                $_SESSION['error'] = $errorMsg;
-                $this->redirect('/proxies');
-            }
+            return $this->handleAjaxError($errorMsg, 500);
         }
     }
     
@@ -246,25 +128,11 @@ class ProxiesController extends BaseController {
     public function delete($id) {
         Logger::info("Начало процесса удаления прокси (ID: $id)", 'proxies');
         
-        // Проверяем, что это AJAX запрос
-        if ($this->isAjax()) {
-            // Заголовок Content-Type будет установлен в методе jsonResponse
-        }
-        
         try {
             // Проверяем, что запрос отправлен методом POST
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if (!$this->isMethod('POST')) {
                 Logger::warning("Попытка удаления прокси (ID: $id) не через POST метод", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => false,
-                        'message' => 'Метод не поддерживается'
-                    ]);
-                } else {
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError('Метод не поддерживается', 405);
             }
             
             // Удаляем прокси из базы данных
@@ -275,44 +143,17 @@ class ProxiesController extends BaseController {
             if ($result) {
                 $successMsg = 'Прокси успешно удален';
                 Logger::info($successMsg . " (ID: $id)", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => true,
-                        'message' => $successMsg
-                    ]);
-                } else {
-                    $_SESSION['success'] = $successMsg;
-                    $this->redirect('/proxies');
-                }
+                return $this->handleSuccess($successMsg, null, true);
             } else {
                 $errorMsg = 'Ошибка при удалении прокси';
                 Logger::error($errorMsg . " (ID: $id)", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => false,
-                        'message' => $errorMsg
-                    ]);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
+                return $this->handleAjaxError($errorMsg);
             }
         } catch (Exception $e) {
             // Обработка исключений
             $errorMsg = 'Ошибка при удалении прокси: ' . $e->getMessage();
             Logger::error($errorMsg . "\n" . $e->getTraceAsString(), 'proxies');
-            
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => $errorMsg
-                ]);
-            } else {
-                $_SESSION['error'] = $errorMsg;
-                $this->redirect('/proxies');
-            }
+            return $this->handleAjaxError($errorMsg, 500);
         }
     }
     
@@ -332,9 +173,17 @@ class ProxiesController extends BaseController {
             if (!$proxy) {
                 $errorMsg = 'Прокси не найден';
                 Logger::warning($errorMsg . " (ID: $id)", 'proxies');
-                $_SESSION['error'] = $errorMsg;
-                $this->redirect('/proxies');
-                return;
+                
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => false,
+                        'message' => $errorMsg
+                    ]);
+                } else {
+                    $_SESSION['error'] = $errorMsg;
+                    $this->redirect('/proxies');
+                    return;
+                }
             }
             
             // Инвертируем статус
@@ -349,21 +198,46 @@ class ProxiesController extends BaseController {
             if ($result) {
                 $successMsg = 'Прокси успешно ' . $statusText;
                 Logger::info($successMsg . " (ID: $id)", 'proxies');
-                $_SESSION['success'] = $successMsg;
+                
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => true,
+                        'message' => $successMsg,
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = $successMsg;
+                    $this->redirect('/proxies');
+                }
             } else {
                 $errorMsg = 'Ошибка при изменении статуса прокси';
                 Logger::error($errorMsg . " (ID: $id)", 'proxies');
-                $_SESSION['error'] = $errorMsg;
+                
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => false,
+                        'message' => $errorMsg
+                    ]);
+                } else {
+                    $_SESSION['error'] = $errorMsg;
+                    $this->redirect('/proxies');
+                }
             }
         } catch (Exception $e) {
             // Обработка исключений
             $errorMsg = 'Ошибка при изменении статуса прокси: ' . $e->getMessage();
             Logger::error($errorMsg . "\n" . $e->getTraceAsString(), 'proxies');
-            $_SESSION['error'] = $errorMsg;
+            
+            if ($this->isAjax()) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'message' => $errorMsg
+                ]);
+            } else {
+                $_SESSION['error'] = $errorMsg;
+                $this->redirect('/proxies');
+            }
         }
-        
-        // Перенаправляем на страницу прокси
-        $this->redirect('/proxies');
     }
     
     /**
@@ -374,25 +248,11 @@ class ProxiesController extends BaseController {
     public function check($id) {
         Logger::info("Начало процесса проверки прокси (ID: $id)", 'proxies');
         
-        // Проверяем, что это AJAX запрос
-        if ($this->isAjax()) {
-            // Заголовок Content-Type будет установлен в методе jsonResponse
-        }
-        
         try {
             // Проверяем, что запрос отправлен методом POST
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if (!$this->isMethod('POST')) {
                 Logger::warning("Попытка проверки прокси (ID: $id) не через POST метод", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => false,
-                        'message' => 'Метод не поддерживается'
-                    ]);
-                } else {
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError('Метод не поддерживается', 405);
             }
             
             // Получаем информацию о прокси
@@ -402,17 +262,7 @@ class ProxiesController extends BaseController {
             if (!$proxy) {
                 $errorMsg = 'Прокси не найден';
                 Logger::warning($errorMsg . " (ID: $id)", 'proxies');
-                
-                if ($this->isAjax()) {
-                    $this->jsonResponse([
-                        'success' => false,
-                        'message' => $errorMsg
-                    ]);
-                } else {
-                    $_SESSION['error'] = $errorMsg;
-                    $this->redirect('/proxies');
-                }
-                return;
+                return $this->handleAjaxError($errorMsg, 404);
             }
             
             // Проверяем прокси
@@ -437,7 +287,7 @@ class ProxiesController extends BaseController {
             Logger::info($message . " (ID: $id)", 'proxies');
             
             if ($this->isAjax()) {
-                $this->jsonResponse([
+                return $this->jsonResponse([
                     'success' => $isWorking,
                     'message' => $message
                 ]);
@@ -449,16 +299,7 @@ class ProxiesController extends BaseController {
             // Обработка исключений
             $errorMsg = 'Ошибка при проверке прокси: ' . $e->getMessage();
             Logger::error($errorMsg . "\n" . $e->getTraceAsString(), 'proxies');
-            
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => $errorMsg
-                ]);
-            } else {
-                $_SESSION['error'] = $errorMsg;
-                $this->redirect('/proxies');
-            }
+            return $this->handleAjaxError($errorMsg, 500);
         }
     }
     

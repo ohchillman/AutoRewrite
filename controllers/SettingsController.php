@@ -26,81 +26,67 @@ class SettingsController extends BaseController {
      */
     public function save() {
         // Проверяем, что запрос отправлен методом POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->redirect('/settings');
-            return;
+        if (!$this->isMethod('POST')) {
+            return $this->handleAjaxError('Метод не поддерживается', 405);
         }
         
-        // Получаем данные из POST
-        $settings = $_POST['settings'] ?? [];
-        
-        // Проверяем наличие данных
-        if (empty($settings)) {
-            if ($this->isAjax()) {
-                $this->jsonResponse([
-                    'success' => false,
-                    'message' => 'Нет данных для сохранения'
-                ]);
-            } else {
-                $_SESSION['error'] = 'Нет данных для сохранения';
-                $this->redirect('/settings');
+        try {
+            // Получаем данные из POST
+            $settings = $_POST['settings'] ?? [];
+            
+            // Проверяем наличие данных
+            if (empty($settings)) {
+                return $this->handleAjaxError('Нет данных для сохранения');
             }
-            return;
-        }
-        
-        // Сохраняем настройки
-        $success = true;
-        $errors = [];
-        
-        foreach ($settings as $key => $value) {
-            // Проверяем безопасность ключа
-            $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key);
             
-            // Проверяем, существует ли настройка
-            $exists = $this->db->fetchColumn(
-                "SELECT COUNT(*) FROM settings WHERE setting_key = ?", 
-                [$key]
-            );
+            // Сохраняем настройки
+            $success = true;
+            $errors = [];
             
-            if ($exists) {
-                // Обновляем существующую настройку
-                $result = $this->db->update(
-                    'settings',
-                    ['setting_value' => $value],
-                    'setting_key = ?',
+            foreach ($settings as $key => $value) {
+                // Проверяем безопасность ключа
+                $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key);
+                
+                // Проверяем, существует ли настройка
+                $exists = $this->db->fetchColumn(
+                    "SELECT COUNT(*) FROM settings WHERE setting_key = ?", 
                     [$key]
                 );
-            } else {
-                // Создаем новую настройку
-                $result = $this->db->insert(
-                    'settings',
-                    [
-                        'setting_key' => $key,
-                        'setting_value' => $value
-                    ]
-                );
+                
+                if ($exists) {
+                    // Обновляем существующую настройку
+                    $result = $this->db->update(
+                        'settings',
+                        ['setting_value' => $value],
+                        'setting_key = ?',
+                        [$key]
+                    );
+                } else {
+                    // Создаем новую настройку
+                    $result = $this->db->insert(
+                        'settings',
+                        [
+                            'setting_key' => $key,
+                            'setting_value' => $value
+                        ]
+                    );
+                }
+                
+                if (!$result) {
+                    $success = false;
+                    $errors[] = "Не удалось сохранить настройку '{$key}'";
+                }
             }
             
-            if (!$result) {
-                $success = false;
-                $errors[] = "Не удалось сохранить настройку '{$key}'";
-            }
-        }
-        
-        // Отправляем ответ
-        if ($this->isAjax()) {
-            $this->jsonResponse([
-                'success' => $success,
-                'message' => $success ? 'Настройки успешно сохранены' : 'Ошибка при сохранении настроек: ' . implode(', ', $errors),
-                'refresh' => $success
-            ]);
-        } else {
+            // Отправляем ответ
             if ($success) {
-                $_SESSION['success'] = 'Настройки успешно сохранены';
+                return $this->handleSuccess('Настройки успешно сохранены', null, true);
             } else {
-                $_SESSION['error'] = 'Ошибка при сохранении настроек: ' . implode(', ', $errors);
+                return $this->handleAjaxError('Ошибка при сохранении настроек: ' . implode(', ', $errors));
             }
-            $this->redirect('/settings');
+        } catch (Exception $e) {
+            Logger::error('Ошибка при сохранении настроек: ' . $e->getMessage(), 'settings');
+            return $this->handleAjaxError('Ошибка при сохранении настроек: ' . $e->getMessage(), 500);
         }
     }
     
@@ -110,14 +96,19 @@ class SettingsController extends BaseController {
      * @return array Массив настроек
      */
     private function getAllSettings() {
-        $settings = $this->db->fetchAll("SELECT setting_key, setting_value FROM settings");
-        
-        // Преобразуем в ассоциативный массив
-        $result = [];
-        foreach ($settings as $setting) {
-            $result[$setting['setting_key']] = $setting['setting_value'];
+        try {
+            $settings = $this->db->fetchAll("SELECT setting_key, setting_value FROM settings");
+            
+            // Преобразуем в ассоциативный массив
+            $result = [];
+            foreach ($settings as $setting) {
+                $result[$setting['setting_key']] = $setting['setting_value'];
+            }
+            
+            return $result;
+        } catch (Exception $e) {
+            Logger::error('Ошибка при получении настроек: ' . $e->getMessage(), 'settings');
+            return [];
         }
-        
-        return $result;
     }
 }
