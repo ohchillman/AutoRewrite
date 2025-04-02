@@ -114,7 +114,13 @@ class ParsingController extends BaseController {
     public function toggle($id = null) {
         // Проверяем ID
         if (empty($id)) {
-            return $this->handleAjaxError('ID источника не указан', 400);
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('ID источника не указан', 400);
+            } else {
+                $_SESSION['error'] = 'ID источника не указан';
+                $this->redirect('/parsing');
+                return;
+            }
         }
         
         try {
@@ -122,7 +128,13 @@ class ParsingController extends BaseController {
             $source = $this->db->fetchOne("SELECT is_active FROM parsing_sources WHERE id = ?", [$id]);
             
             if (!$source) {
-                return $this->handleAjaxError('Источник не найден', 404);
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Источник не найден', 404);
+                } else {
+                    $_SESSION['error'] = 'Источник не найден';
+                    $this->redirect('/parsing');
+                    return;
+                }
             }
             
             // Инвертируем статус
@@ -133,13 +145,35 @@ class ParsingController extends BaseController {
             
             // Проверяем результат
             if ($result) {
-                return $this->handleSuccess('Статус источника изменен', null, true);
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Статус источника изменен',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Статус источника изменен';
+                    $this->redirect('/parsing');
+                    return;
+                }
             } else {
-                return $this->handleAjaxError('Ошибка при изменении статуса источника');
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Ошибка при изменении статуса источника');
+                } else {
+                    $_SESSION['error'] = 'Ошибка при изменении статуса источника';
+                    $this->redirect('/parsing');
+                    return;
+                }
             }
         } catch (Exception $e) {
             Logger::error('Ошибка при изменении статуса источника: ' . $e->getMessage(), 'parsing');
-            return $this->handleAjaxError('Ошибка при изменении статуса источника: ' . $e->getMessage(), 500);
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('Ошибка при изменении статуса источника: ' . $e->getMessage(), 500);
+            } else {
+                $_SESSION['error'] = 'Ошибка при изменении статуса источника: ' . $e->getMessage();
+                $this->redirect('/parsing');
+                return;
+            }
         }
     }
     
@@ -151,7 +185,13 @@ class ParsingController extends BaseController {
     public function parse($id = null) {
         // Проверяем ID
         if (empty($id)) {
-            return $this->handleAjaxError('ID источника не указан', 400);
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('ID источника не указан', 400);
+            } else {
+                $_SESSION['error'] = 'ID источника не указан';
+                $this->redirect('/parsing');
+                return;
+            }
         }
         
         try {
@@ -161,7 +201,13 @@ class ParsingController extends BaseController {
             ", [$id]);
             
             if (!$source) {
-                return $this->handleAjaxError('Источник не найден', 404);
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Источник не найден', 404);
+                } else {
+                    $_SESSION['error'] = 'Источник не найден';
+                    $this->redirect('/parsing');
+                    return;
+                }
             }
             
             // Здесь будет логика парсинга источника
@@ -185,13 +231,35 @@ class ParsingController extends BaseController {
             
             // Отправляем ответ
             if ($result && $contentId) {
-                return $this->handleSuccess('Парсинг источника выполнен успешно', null, true);
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Парсинг источника выполнен успешно',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Парсинг источника выполнен успешно';
+                    $this->redirect('/parsing');
+                    return;
+                }
             } else {
-                return $this->handleAjaxError('Ошибка при парсинге источника');
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Ошибка при парсинге источника');
+                } else {
+                    $_SESSION['error'] = 'Ошибка при парсинге источника';
+                    $this->redirect('/parsing');
+                    return;
+                }
             }
         } catch (Exception $e) {
             Logger::error('Ошибка при парсинге источника: ' . $e->getMessage(), 'parsing');
-            return $this->handleAjaxError('Ошибка при парсинге источника: ' . $e->getMessage(), 500);
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('Ошибка при парсинге источника: ' . $e->getMessage(), 500);
+            } else {
+                $_SESSION['error'] = 'Ошибка при парсинге источника: ' . $e->getMessage();
+                $this->redirect('/parsing');
+                return;
+            }
         }
     }
     

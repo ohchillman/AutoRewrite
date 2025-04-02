@@ -125,37 +125,71 @@ class AccountsController extends BaseController {
     * 
     * @param int $id ID аккаунта
     */
-   public function toggle($id = null) {
-       // Проверяем ID
-       if (empty($id)) {
-           return $this->handleAjaxError('ID аккаунта не указан', 400);
-       }
-       
-       try {
-           // Получаем текущий статус
-           $account = $this->db->fetchOne("SELECT is_active FROM accounts WHERE id = ?", [$id]);
-           
-           if (!$account) {
-               return $this->handleAjaxError('Аккаунт не найден', 404);
-           }
-           
-           // Инвертируем статус
-           $newStatus = $account['is_active'] ? 0 : 1;
-           
-           // Обновляем статус в базе данных
-           $result = $this->db->update('accounts', ['is_active' => $newStatus], 'id = ?', [$id]);
-           
-           // Проверяем результат
-           if ($result) {
-               return $this->handleSuccess('Статус аккаунта изменен', null, true);
-           } else {
-               return $this->handleAjaxError('Ошибка при изменении статуса аккаунта');
-           }
-       } catch (Exception $e) {
-           Logger::error('Ошибка при изменении статуса аккаунта: ' . $e->getMessage(), 'accounts');
-           return $this->handleAjaxError('Ошибка при изменении статуса аккаунта: ' . $e->getMessage(), 500);
-       }
-   }
+    public function toggle($id = null) {
+        // Проверяем ID
+        if (empty($id)) {
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('ID аккаунта не указан', 400);
+            } else {
+                $_SESSION['error'] = 'ID аккаунта не указан';
+                $this->redirect('/accounts');
+                return;
+            }
+        }
+        
+        try {
+            // Получаем текущий статус
+            $account = $this->db->fetchOne("SELECT is_active FROM accounts WHERE id = ?", [$id]);
+            
+            if (!$account) {
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Аккаунт не найден', 404);
+                } else {
+                    $_SESSION['error'] = 'Аккаунт не найден';
+                    $this->redirect('/accounts');
+                    return;
+                }
+            }
+            
+            // Инвертируем статус
+            $newStatus = $account['is_active'] ? 0 : 1;
+            
+            // Обновляем статус в базе данных
+            $result = $this->db->update('accounts', ['is_active' => $newStatus], 'id = ?', [$id]);
+            
+            // Проверяем результат
+            if ($result) {
+                if ($this->isAjax()) {
+                    return $this->jsonResponse([
+                        'success' => true,
+                        'message' => 'Статус аккаунта изменен',
+                        'refresh' => true
+                    ]);
+                } else {
+                    $_SESSION['success'] = 'Статус аккаунта изменен';
+                    $this->redirect('/accounts');
+                    return;
+                }
+            } else {
+                if ($this->isAjax()) {
+                    return $this->handleAjaxError('Ошибка при изменении статуса аккаунта');
+                } else {
+                    $_SESSION['error'] = 'Ошибка при изменении статуса аккаунта';
+                    $this->redirect('/accounts');
+                    return;
+                }
+            }
+        } catch (Exception $e) {
+            Logger::error('Ошибка при изменении статуса аккаунта: ' . $e->getMessage(), 'accounts');
+            if ($this->isAjax()) {
+                return $this->handleAjaxError('Ошибка при изменении статуса аккаунта: ' . $e->getMessage(), 500);
+            } else {
+                $_SESSION['error'] = 'Ошибка при изменении статуса аккаунта: ' . $e->getMessage();
+                $this->redirect('/accounts');
+                return;
+            }
+        }
+    }
    
    /**
     * Редактирование аккаунта

@@ -34,6 +34,11 @@ class Router {
         // Проверяем, существует ли такой маршрут
         if (isset($this->routes[$baseRoute])) {
             $controller = $this->routes[$baseRoute]['controller'];
+            $defaultAction = $this->routes[$baseRoute]['action'];
+            
+            if (empty($action)) {
+                $action = $defaultAction;
+            }
             
             // Определяем действие из URL или используем действие по умолчанию
             $action = isset($segments[1]) && !empty($segments[1]) ? $segments[1] : $this->routes[$baseRoute]['action'];
