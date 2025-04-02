@@ -145,6 +145,7 @@
                             </td>
                             <td>
                                 <div class="btn-group" role="group">
+
                                     <button type="button" class="btn btn-sm btn-info check-proxy-btn" data-proxy-id="<?php echo $proxy['id']; ?>">
                                         <i class="fas fa-sync-alt"></i> Проверить
                                     </button>
@@ -167,6 +168,11 @@
                                         <i class="fas fa-check"></i> Активировать
                                         <?php endif; ?>
                                     </button>
+
+                                    <a href="/proxies/edit/<?php echo $proxy['id']; ?>" class="btn btn-sm btn-info">
+                                        <i class="fas fa-edit"></i> Редактировать
+                                    </a>
+
                                     <button type="button" class="btn btn-sm btn-danger delete-btn" 
                                             data-delete-url="/proxies/delete/<?php echo $proxy['id']; ?>"
                                             data-item-name="прокси <?php echo htmlspecialchars($proxy['name']); ?>">

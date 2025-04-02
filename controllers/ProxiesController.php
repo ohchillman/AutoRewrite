@@ -184,6 +184,106 @@ class ProxiesController extends BaseController {
     }
 
     /**
+     * Редактирование прокси
+     * 
+     * @param int $id ID прокси
+     */
+    public function edit($id = null) {
+        // Проверяем ID
+        if (empty($id)) {
+            $this->redirect('/proxies');
+            return;
+        }
+        
+        // Если POST запрос, обрабатываем форму
+        if ($this->isMethod('POST')) {
+            try {
+                // Получаем данные из POST
+                $name = $this->post('name');
+                $ip = $this->post('ip');
+                $port = $this->post('port');
+                $username = $this->post('username');
+                $password = $this->post('password');
+                $protocol = $this->post('protocol');
+                $country = $this->post('country');
+                $ip_change_url = $this->post('ip_change_url');
+                
+                // Проверяем обязательные поля
+                if (empty($name) || empty($ip) || empty($port) || empty($protocol)) {
+                    return $this->handleAjaxError('Необходимо заполнить поля Название, IP, порт и протокол');
+                }
+                
+                // Проверяем, что порт является числом
+                if (!is_numeric($port)) {
+                    return $this->handleAjaxError('Порт должен быть числом');
+                }
+                
+                // Проверяем, что протокол допустимый
+                $validProtocols = ['http', 'https', 'socks4', 'socks5'];
+                if (!in_array($protocol, $validProtocols)) {
+                    return $this->handleAjaxError('Недопустимый протокол');
+                }
+                
+                // Подготавливаем данные для обновления
+                $proxyData = [
+                    'name' => $name,
+                    'ip' => $ip,
+                    'port' => (int)$port,
+                    'username' => $username,
+                    'protocol' => $protocol,
+                    'country' => $country,
+                    'ip_change_url' => $ip_change_url
+                ];
+                
+                // Если пароль не пустой, обновляем его
+                if (!empty($password)) {
+                    $proxyData['password'] = $password;
+                }
+                
+                // Обновляем прокси в базе данных
+                $result = $this->db->update('proxies', $proxyData, 'id = ?', [$id]);
+                
+                // Проверяем результат
+                if ($result !== false) {
+                    if ($this->isAjax()) {
+                        return $this->jsonResponse([
+                            'success' => true,
+                            'message' => 'Прокси успешно обновлен',
+                            'redirect' => '/proxies'
+                        ]);
+                    } else {
+                        $_SESSION['success'] = 'Прокси успешно обновлен';
+                        $this->redirect('/proxies');
+                    }
+                } else {
+                    return $this->handleAjaxError('Ошибка при обновлении прокси');
+                }
+            } catch (Exception $e) {
+                Logger::error('Ошибка при обновлении прокси: ' . $e->getMessage(), 'proxies');
+                return $this->handleAjaxError('Ошибка при обновлении прокси: ' . $e->getMessage(), 500);
+            }
+        }
+        
+        // Получаем данные прокси
+        $proxy = $this->db->fetchOne("SELECT * FROM proxies WHERE id = ?", [$id]);
+        
+        if (!$proxy) {
+            $_SESSION['error'] = 'Прокси не найден';
+            $this->redirect('/proxies');
+            return;
+        }
+        
+        // Отображаем представление
+        $this->render('proxies/edit', [
+            'title' => 'Редактирование прокси - AutoRewrite',
+            'pageTitle' => 'Редактирование прокси',
+            'currentPage' => 'proxies',
+            'layout' => 'main',
+            'proxy' => $proxy
+        ]);
+    }
+
+    /**
      * Отправка запроса на смену IP прокси
      * 
      * @param string $url URL для запроса смены IP
