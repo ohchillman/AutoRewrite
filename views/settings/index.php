@@ -7,19 +7,24 @@
             <div class="card-body">
                 <form action="/settings/save" method="POST" class="ajax-form">
                     <div class="row">
-                        <!-- Make.com API настройки -->
+                        <!-- Gemini API настройки -->
                         <div class="col-md-12 mb-4">
-                            <h5>Make.com API</h5>
+                            <h5>Gemini API</h5>
                             <hr>
                             <div class="mb-3">
-                                <label for="makecom_api_key" class="form-label">API ключ</label>
-                                <input type="text" class="form-control" id="makecom_api_key" name="settings[makecom_api_key]" value="<?php echo htmlspecialchars($settings['makecom_api_key'] ?? ''); ?>">
-                                <div class="form-text">Ключ API для доступа к Make.com</div>
+                                <label for="gemini_api_key" class="form-label">API ключ Gemini</label>
+                                <input type="text" class="form-control" id="gemini_api_key" name="settings[gemini_api_key]" value="<?php echo htmlspecialchars($settings['gemini_api_key'] ?? ''); ?>">
+                                <div class="form-text">Ключ API для доступа к Gemini API. Получите его на <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></div>
                             </div>
                             <div class="mb-3">
-                                <label for="makecom_api_url" class="form-label">URL вебхука</label>
-                                <input type="text" class="form-control" id="makecom_api_url" name="settings[makecom_api_url]" value="<?php echo htmlspecialchars($settings['makecom_api_url'] ?? ''); ?>">
-                                <div class="form-text">URL вебхука для отправки запросов на реврайт</div>
+                                <label for="gemini_model" class="form-label">Модель Gemini</label>
+                                <select class="form-select" id="gemini_model" name="settings[gemini_model]">
+                                    <option value="gemini-pro" <?php echo ($settings['gemini_model'] ?? 'gemini-pro') == 'gemini-pro' ? 'selected' : ''; ?>>Gemini Pro</option>
+                                    <option value="gemini-1.5-pro" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-1.5-pro' ? 'selected' : ''; ?>>Gemini 1.5 Pro</option>
+                                    <option value="gemini-2.0-flash" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-2.0-flash' ? 'selected' : ''; ?>>Gemini 2.0 Flash</option>
+                                    <option value="gemini-2.5-pro-experimental-03-25" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-2.5-pro-experimental-03-25' ? 'selected' : ''; ?>>Gemini 2.5 Pro Experimental</option>
+                                </select>
+                                <div class="form-text">Модель Gemini для генерации контента</div>
                             </div>
                         </div>
 
@@ -29,7 +34,7 @@
                             <hr>
                             <div class="mb-3">
                                 <label for="rewrite_template" class="form-label">Шаблон запроса для реврайта</label>
-                                <textarea class="form-control" id="rewrite_template" name="settings[rewrite_template]" rows="3"><?php echo htmlspecialchars($settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}'); ?></textarea>
+                                <textarea class="form-control" id="rewrite_template" name="settings[rewrite_template]" rows="3"><?php echo htmlspecialchars($settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки. Не сокращай текст, сохраняй структуру абзацев и примерную длину. Сделай текст уникальным: {content}'); ?></textarea>
                                 <div class="form-text">Шаблон запроса для реврайта, где {content} будет заменен на оригинальный текст</div>
                             </div>
                         </div>

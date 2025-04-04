@@ -108,14 +108,56 @@ class RewriteController extends BaseController {
             
             // Получаем настройки для реврайта
             $settings = $this->getSettings();
+            
+            // Проверка API-ключа Gemini
+            if (empty($settings['gemini_api_key'])) {
+                return $this->handleAjaxError('API-ключ Gemini не настроен. Пожалуйста, добавьте его в настройках.', 400);
+            }
+            
+            // Получаем шаблон для реврайта
             $rewriteTemplate = $settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}';
             
-            // Здесь должен быть код для отправки запроса на Make.com API
-            // В реальном приложении это должно выполняться в фоновом режиме
+            // Создаем экземпляр клиента Gemini API
+            require_once UTILS_PATH . '/GeminiApiClient.php';
+            $geminiClient = new GeminiApiClient(
+                $settings['gemini_api_key'],
+                $settings['gemini_model'] ?? 'gemini-pro'
+            );
             
-            // Для примера просто модифицируем оригинальный контент
-            $rewrittenTitle = 'Реврайт: ' . $originalContent['title'];
-            $rewrittenContent = 'Это реврайтнутая версия оригинального контента: ' . $originalContent['content'];
+            // Подготавливаем контент для реврайта
+            $contentToRewrite = $originalContent['title'] . "\n\n" . $originalContent['content'];
+            
+            // Отправка запроса на реврайт в Gemini API
+            Logger::info("Отправка запроса на реврайт контента ID: {$originalContent['id']}", 'rewrite');
+            $response = $geminiClient->rewriteContent($contentToRewrite, $rewriteTemplate);
+            
+            // Проверяем успешность запроса
+            if (!$response['success']) {
+                $errorMessage = "Ошибка при запросе к Gemini API: " . ($response['error'] ?? 'Неизвестная ошибка');
+                Logger::error($errorMessage, 'rewrite');
+                return $this->handleAjaxError($errorMessage, 500);
+            }
+            
+            // Обработка ответа от API
+            $rewrittenContent = $response['content'];
+            
+            // Если ответ пустой, возвращаем ошибку
+            if (empty($rewrittenContent)) {
+                Logger::error("Пустой ответ от Gemini API при реврайте контента ID: {$originalContent['id']}", 'rewrite');
+                return $this->handleAjaxError('Получен пустой ответ от API. Попробуйте еще раз.', 500);
+            }
+            
+            // Разделение заголовка и описания (первый абзац - заголовок, остальное - контент)
+            $parts = explode("\n\n", $rewrittenContent, 2);
+            
+            $rewrittenTitle = trim($parts[0]);
+            $rewrittenContent = isset($parts[1]) ? trim($parts[1]) : '';
+            
+            // Если не удалось разделить, используем оригинальный заголовок
+            if (empty($rewrittenContent)) {
+                $rewrittenContent = $rewrittenTitle;
+                $rewrittenTitle = $originalContent['title'];
+            }
             
             // Сохраняем реврайтнутый контент
             $rewrittenId = $this->db->insert('rewritten_content', [
@@ -131,11 +173,14 @@ class RewriteController extends BaseController {
                 'is_processed' => 1
             ], 'id = ?', [$originalContent['id']]);
             
+            // Логируем успешный реврайт
+            Logger::info("Контент успешно реврайтнут, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}", 'rewrite');
+            
             // Проверяем результат
             if ($rewrittenId) {
                 return $this->handleSuccess('Контент успешно реврайтнут', '/rewrite/view/' . $rewrittenId);
             } else {
-                return $this->handleAjaxError('Ошибка при реврайте контента');
+                return $this->handleAjaxError('Ошибка при сохранении реврайтнутого контента');
             }
         } catch (Exception $e) {
             Logger::error('Ошибка при реврайте контента: ' . $e->getMessage(), 'rewrite');

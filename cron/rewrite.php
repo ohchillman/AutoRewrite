@@ -7,97 +7,194 @@
 
 // Подключение необходимых файлов
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../utils/MakeApiClient.php';
+require_once __DIR__ . '/../utils/GeminiApiClient.php';
 require_once __DIR__ . '/../utils/Logger.php';
 
 // Инициализация логгера
-$logger = new Logger();
-$logger->log('info', 'Starting content rewriting process');
+Logger::info('Starting content rewriting process', 'rewrite_cron');
 
 try {
     // Подключение к базе данных
     $db = Database::getInstance();
     
-    // Получение настроек API Make.com
-    $settings = $db->fetchOne("SELECT * FROM settings WHERE id = 1");
+    // Получение настроек API Gemini
+    $settings = [];
+    $settingsRows = $db->fetchAll("SELECT setting_key, setting_value FROM settings");
     
-    if (empty($settings) || empty($settings['make_api_key'])) {
-        $logger->log('error', 'Make.com API key not configured');
+    foreach ($settingsRows as $row) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+    
+    // Проверка наличия API-ключа Gemini
+    if (empty($settings['gemini_api_key'])) {
+        Logger::error('Gemini API key not configured', 'rewrite_cron');
         exit;
     }
     
-    // Инициализация клиента Make.com API
-    $makeClient = new MakeApiClient($settings['make_api_key']);
+    // Инициализация клиента Gemini API
+    $geminiClient = new GeminiApiClient(
+        $settings['gemini_api_key'],
+        $settings['gemini_model'] ?? 'gemini-pro'
+    );
     
     // Получение шаблонов для реврайта
-    $templates = $db->fetchAll("SELECT * FROM templates WHERE active = 1");
+    $rewriteTemplate = $settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}';
     
-    if (empty($templates)) {
-        $logger->log('warning', 'No active rewrite templates found');
-        exit;
-    }
+    // Получение минимальной длины контента для обработки
+    $minContentLength = isset($settings['min_content_length']) ? (int)$settings['min_content_length'] : 100;
+    
+    // Получение максимального количества потоков для реврайта
+    $maxThreads = isset($settings['max_rewrite_threads']) ? (int)$settings['max_rewrite_threads'] : 2;
     
     // Получение контента для реврайта
-    $content = $db->fetchAll("SELECT * FROM content WHERE status = 'new' LIMIT 10");
+    $content = $db->fetchAll("
+        SELECT * FROM original_content 
+        WHERE is_processed = 0 
+        AND LENGTH(content) >= ? 
+        ORDER BY parsed_at ASC 
+        LIMIT ?
+    ", [$minContentLength, $maxThreads]);
     
     if (empty($content)) {
-        $logger->log('info', 'No new content to rewrite');
+        Logger::info('No new content to rewrite', 'rewrite_cron');
         exit;
     }
     
-    $logger->log('info', 'Found ' . count($content) . ' items to rewrite');
+    Logger::info('Found ' . count($content) . ' items to rewrite', 'rewrite_cron');
     
     // Обработка каждого элемента контента
     foreach ($content as $item) {
-        $logger->log('info', 'Processing content ID: ' . $item['id'] . ' - ' . $item['title']);
-        
-        // Выбор случайного шаблона для реврайта
-        $template = $templates[array_rand($templates)];
+        Logger::info('Processing content ID: ' . $item['id'] . ' - ' . $item['title'], 'rewrite_cron');
         
         try {
             // Подготовка контента для реврайта
-            $contentToRewrite = $item['title'] . "\n\n" . $item['description'];
+            $contentToRewrite = $item['title'] . "\n\n" . $item['content'];
             
             // Отправка запроса на реврайт
-            $response = $makeClient->rewriteContent($contentToRewrite, $template['template']);
+            $response = $geminiClient->rewriteContent($contentToRewrite, $rewriteTemplate);
             
-            if (isset($response['error'])) {
-                $logger->log('error', 'Rewrite API error: ' . $response['error']);
+            if (!$response['success']) {
+                Logger::error('Rewrite API error: ' . ($response['error'] ?? 'Unknown error'), 'rewrite_cron');
+                
+                // Пометка контента как проблемного, но не обработанного
+                $db->update('original_content', [
+                    'last_error' => 'API Error: ' . ($response['error'] ?? 'Unknown error'),
+                    'error_count' => $item['error_count'] + 1 ?? 1
+                ], 'id = ?', [$item['id']]);
+                
                 continue;
             }
             
             // Обработка ответа от API
-            if (isset($response['content'])) {
-                // Разделение заголовка и описания
-                $rewrittenContent = $response['content'];
-                $parts = explode("\n\n", $rewrittenContent, 2);
+            $rewrittenContent = $response['content'];
+            
+            // Если ответ пустой, пропускаем этот элемент
+            if (empty($rewrittenContent)) {
+                Logger::error('Empty API response', 'rewrite_cron');
                 
-                $rewrittenTitle = $parts[0];
-                $rewrittenDescription = isset($parts[1]) ? $parts[1] : '';
+                // Пометка контента как проблемного
+                $db->update('original_content', [
+                    'last_error' => 'Empty API response',
+                    'error_count' => $item['error_count'] + 1 ?? 1
+                ], 'id = ?', [$item['id']]);
                 
-                // Сохранение реврайтнутого контента
-                $data = [
-                    'rewritten_title' => $rewrittenTitle,
-                    'rewritten_description' => $rewrittenDescription,
-                    'template_id' => $template['id'],
-                    'status' => 'rewritten',
-                    'rewritten_at' => date('Y-m-d H:i:s')
-                ];
+                continue;
+            }
+            
+            // Разделение заголовка и описания
+            $parts = explode("\n\n", $rewrittenContent, 2);
+            
+            $rewrittenTitle = trim($parts[0]);
+            $rewrittenDescription = isset($parts[1]) ? trim($parts[1]) : '';
+            
+            // Если не удалось разделить, используем оригинальный заголовок
+            if (empty($rewrittenDescription)) {
+                $rewrittenDescription = $rewrittenTitle;
+                $rewrittenTitle = $item['title'];
+            }
+            
+            // Сохранение реврайтнутого контента
+            $data = [
+                'original_id' => $item['id'],
+                'title' => $rewrittenTitle,
+                'content' => $rewrittenDescription,
+                'rewrite_date' => date('Y-m-d H:i:s'),
+                'status' => 'rewritten'
+            ];
+            
+            $rewrittenId = $db->insert('rewritten_content', $data);
+            
+            if ($rewrittenId) {
+                // Обновление статуса оригинального контента
+                $db->update('original_content', [
+                    'is_processed' => 1,
+                    'last_error' => null,
+                    'error_count' => 0
+                ], 'id = ?', [$item['id']]);
                 
-                $db->update('content', $data, 'id = ?', [$item['id']]);
-                $logger->log('info', 'Content rewritten successfully, ID: ' . $item['id']);
+                Logger::info('Content rewritten successfully, ID: ' . $rewrittenId, 'rewrite_cron');
+                
+                // Автоматический постинг, если включен
+                if (isset($settings['auto_posting']) && $settings['auto_posting'] == '1') {
+                    $this->schedulePostingIfEnabled($rewrittenId);
+                }
             } else {
-                $logger->log('error', 'Invalid API response format');
+                Logger::error('Failed to save rewritten content', 'rewrite_cron');
             }
         } catch (Exception $e) {
-            $logger->log('error', 'Error rewriting content ID ' . $item['id'] . ': ' . $e->getMessage());
+            Logger::error('Error rewriting content ID ' . $item['id'] . ': ' . $e->getMessage(), 'rewrite_cron');
             
             // Обновление статуса на ошибку
-            $db->update('content', ['status' => 'error'], 'id = ?', [$item['id']]);
+            $db->update('original_content', [
+                'last_error' => 'Exception: ' . $e->getMessage(),
+                'error_count' => $item['error_count'] + 1 ?? 1
+            ], 'id = ?', [$item['id']]);
         }
     }
     
-    $logger->log('info', 'Content rewriting process completed successfully');
+    Logger::info('Content rewriting process completed successfully', 'rewrite_cron');
 } catch (Exception $e) {
-    $logger->log('error', 'Error during content rewriting: ' . $e->getMessage());
+    Logger::error('Error during content rewriting: ' . $e->getMessage(), 'rewrite_cron');
+}
+
+/**
+ * Планирует публикацию контента, если включен автопостинг
+ * 
+ * @param int $rewrittenId ID реврайтнутого контента
+ */
+function schedulePostingIfEnabled($rewrittenId) {
+    global $db, $settings;
+    
+    try {
+        // Получение активного аккаунта для постинга
+        $account = $db->fetchOne("
+            SELECT a.* FROM accounts a
+            JOIN account_types at ON a.account_type_id = at.id
+            WHERE a.is_active = 1
+            ORDER BY a.last_used ASC
+            LIMIT 1
+        ");
+        
+        if (!$account) {
+            Logger::warning('No active accounts available for auto-posting', 'rewrite_cron');
+            return;
+        }
+        
+        // Создание записи в таблице задач
+        $taskId = $db->insert('scheduled_tasks', [
+            'task_type' => 'posting',
+            'entity_id' => $rewrittenId,
+            'status' => 'pending',
+            'scheduled_time' => date('Y-m-d H:i:s', strtotime('+5 minutes')),
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        if ($taskId) {
+            Logger::info("Scheduled auto-posting for content ID: $rewrittenId to account ID: {$account['id']}", 'rewrite_cron');
+        } else {
+            Logger::error("Failed to schedule auto-posting for content ID: $rewrittenId", 'rewrite_cron');
+        }
+    } catch (Exception $e) {
+        Logger::error('Error scheduling auto-posting: ' . $e->getMessage(), 'rewrite_cron');
+    }
 }
