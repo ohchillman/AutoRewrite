@@ -20,21 +20,37 @@ try {
     // Получение настроек API Gemini
     $settings = [];
     $settingsRows = $db->fetchAll("SELECT setting_key, setting_value FROM settings");
-    
+
     foreach ($settingsRows as $row) {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
-    
-    // Проверка наличия API-ключа Gemini
-    if (empty($settings['gemini_api_key'])) {
-        Logger::error('Gemini API key not configured', 'rewrite_cron');
+
+    // Определяем провайдера API и проверяем API-ключ
+    $aiProvider = $settings['ai_provider'] ?? 'gemini';
+    $apiKey = '';
+
+    if ($aiProvider === 'gemini') {
+        $apiKey = $settings['gemini_api_key'] ?? '';
+        if (empty($apiKey)) {
+            Logger::error('Gemini API key not configured', 'rewrite_cron');
+            exit;
+        }
+    } else if ($aiProvider === 'openrouter') {
+        $apiKey = $settings['openrouter_api_key'] ?? '';
+        if (empty($apiKey)) {
+            Logger::error('OpenRouter API key not configured', 'rewrite_cron');
+            exit;
+        }
+    } else {
+        Logger::error('Unknown API provider: ' . $aiProvider, 'rewrite_cron');
         exit;
     }
-    
-    // Инициализация клиента Gemini API
+
+    // Инициализация клиента API
     $geminiClient = new GeminiApiClient(
-        $settings['gemini_api_key'],
-        $settings['gemini_model'] ?? 'gemini-pro'
+        $apiKey,
+        $settings['gemini_model'] ?? 'gemini-pro',
+        $aiProvider === 'openrouter' // Используем OpenRouter, если выбран этот провайдер
     );
     
     // Получение шаблонов для реврайта

@@ -158,7 +158,7 @@ INSERT INTO account_types (name, description) VALUES
 -- Вставка начальных настроек
 INSERT INTO settings (setting_key, setting_value) VALUES 
 ('gemini_api_key', ''),
-('gemini_model', 'gemini-pro'),
+('gemini_model', 'gemini-pro:free'),
 ('rewrite_template', 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки. Не сокращай текст, сохраняй структуру абзацев и примерную длину. Сделай текст уникальным: {content}'),
 ('max_parsing_threads', '3'),
 ('max_rewrite_threads', '2'),

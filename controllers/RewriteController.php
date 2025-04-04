@@ -80,7 +80,7 @@ class RewriteController extends BaseController {
     }
     
     /**
-     * Реврайт контента
+     * Метод для обработки реврайта контента
      * 
      * @param int $id ID оригинального контента
      */
@@ -109,31 +109,45 @@ class RewriteController extends BaseController {
             // Получаем настройки для реврайта
             $settings = $this->getSettings();
             
-            // Проверка API-ключа Gemini
-            if (empty($settings['gemini_api_key'])) {
-                return $this->handleAjaxError('API-ключ Gemini не настроен. Пожалуйста, добавьте его в настройках.', 400);
+            // Определяем провайдера API и проверяем API-ключ
+            $aiProvider = $settings['ai_provider'] ?? 'gemini';
+            $apiKey = '';
+            
+            if ($aiProvider === 'gemini') {
+                $apiKey = $settings['gemini_api_key'] ?? '';
+                if (empty($apiKey)) {
+                    return $this->handleAjaxError('API-ключ Gemini не настроен. Пожалуйста, добавьте его в настройках.', 400);
+                }
+            } else if ($aiProvider === 'openrouter') {
+                $apiKey = $settings['openrouter_api_key'] ?? '';
+                if (empty($apiKey)) {
+                    return $this->handleAjaxError('API-ключ OpenRouter не настроен. Пожалуйста, добавьте его в настройках.', 400);
+                }
+            } else {
+                return $this->handleAjaxError('Неизвестный провайдер API: ' . $aiProvider, 400);
             }
             
             // Получаем шаблон для реврайта
             $rewriteTemplate = $settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}';
             
-            // Создаем экземпляр клиента Gemini API
+            // Создаем экземпляр клиента API
             require_once UTILS_PATH . '/GeminiApiClient.php';
             $geminiClient = new GeminiApiClient(
-                $settings['gemini_api_key'],
-                $settings['gemini_model'] ?? 'gemini-pro'
+                $apiKey,
+                $settings['gemini_model'] ?? 'gemini-pro:free',
+                $aiProvider === 'openrouter' // Используем OpenRouter, если выбран этот провайдер
             );
             
             // Подготавливаем контент для реврайта
             $contentToRewrite = $originalContent['title'] . "\n\n" . $originalContent['content'];
             
-            // Отправка запроса на реврайт в Gemini API
-            Logger::info("Отправка запроса на реврайт контента ID: {$originalContent['id']}", 'rewrite');
+            // Отправка запроса на реврайт
+            Logger::info("Отправка запроса на реврайт контента ID: {$originalContent['id']} через {$aiProvider}", 'rewrite');
             $response = $geminiClient->rewriteContent($contentToRewrite, $rewriteTemplate);
             
             // Проверяем успешность запроса
             if (!$response['success']) {
-                $errorMessage = "Ошибка при запросе к Gemini API: " . ($response['error'] ?? 'Неизвестная ошибка');
+                $errorMessage = "Ошибка при запросе к API: " . ($response['error'] ?? 'Неизвестная ошибка');
                 Logger::error($errorMessage, 'rewrite');
                 return $this->handleAjaxError($errorMessage, 500);
             }
@@ -143,7 +157,7 @@ class RewriteController extends BaseController {
             
             // Если ответ пустой, возвращаем ошибку
             if (empty($rewrittenContent)) {
-                Logger::error("Пустой ответ от Gemini API при реврайте контента ID: {$originalContent['id']}", 'rewrite');
+                Logger::error("Пустой ответ от API при реврайте контента ID: {$originalContent['id']}", 'rewrite');
                 return $this->handleAjaxError('Получен пустой ответ от API. Попробуйте еще раз.', 500);
             }
             
@@ -168,16 +182,16 @@ class RewriteController extends BaseController {
                 'status' => 'rewritten'
             ]);
             
-            // Обновляем статус оригинального контента
-            $this->db->update('original_content', [
-                'is_processed' => 1
-            ], 'id = ?', [$originalContent['id']]);
-            
-            // Логируем успешный реврайт
-            Logger::info("Контент успешно реврайтнут, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}", 'rewrite');
-            
             // Проверяем результат
             if ($rewrittenId) {
+                // Обновляем статус оригинального контента ПОСЛЕ успешного сохранения реврайтнутого
+                $this->db->update('original_content', [
+                    'is_processed' => 1
+                ], 'id = ?', [$originalContent['id']]);
+                
+                // Логируем успешный реврайт
+                Logger::info("Контент успешно реврайтнут через {$aiProvider}, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}", 'rewrite');
+                
                 return $this->handleSuccess('Контент успешно реврайтнут', '/rewrite/view/' . $rewrittenId);
             } else {
                 return $this->handleAjaxError('Ошибка при сохранении реврайтнутого контента');
