@@ -133,9 +133,9 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="/rewrite/view/<?php echo $content['id']; ?>" class="btn btn-sm btn-info">
-                                            <i class="fas fa-eye"></i> Просмотр
-                                        </a>
+                                    <a href="/rewrite/view/<?php echo $content['id']; ?>" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i> Просмотр
+                                    </a>
                                         <button type="button" class="btn btn-sm btn-danger delete-btn" 
                                                 data-delete-url="/rewrite/delete/<?php echo $content['id']; ?>"
                                                 data-item-name="контент '<?php echo htmlspecialchars($content['title']); ?>'">

@@ -265,54 +265,42 @@ function setupDeleteConfirmation() {
  */
 function setupRewriteContent() {
     // Находим все кнопки реврайта
-    document.querySelectorAll('.rewrite-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            // Получаем ID контента
+    document.querySelectorAll('.rewrite-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
             const contentId = this.getAttribute('data-content-id');
             
-            // Показываем индикатор загрузки
-            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Обработка...';
-            this.disabled = true;
+            // Показываем модальное окно с прогрессом
+            rewriteModal.show();
             
             // Отправляем запрос на реврайт
             fetch('/rewrite/process', {
                 method: 'POST',
-                body: JSON.stringify({ contentId: contentId }),
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
-                }
+                },
+                body: JSON.stringify({ contentId: contentId })
             })
-            .then(handleResponse)
+            .then(response => response.json())
             .then(data => {
-                // Восстанавливаем кнопку
-                this.innerHTML = 'Реврайт';
-                this.disabled = false;
+                rewriteModal.hide();
                 
-                // Показываем сообщение
-                showToast(data.success ? 'success' : 'error', data.message);
-                
-                // Если успешно, обновляем страницу или перенаправляем
                 if (data.success) {
+                    showNotification(data.message, 'success');
+                    
                     if (data.redirect) {
-                        setTimeout(function() {
-                            window.location.href = data.redirect;
-                        }, 1000);
+                        window.location.href = data.redirect;
                     } else if (data.refresh) {
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
+                        window.location.reload();
                     }
+                } else {
+                    showNotification(data.message, 'danger');
                 }
             })
             .catch(error => {
-                // Восстанавливаем кнопку
-                this.innerHTML = 'Реврайт';
-                this.disabled = false;
-                
-                // Показываем сообщение об ошибке с подробностями
-                showToast('error', 'Произошла ошибка при реврайте: ' + error.message);
-                console.error('Rewrite error:', error);
+                rewriteModal.hide();
+                showNotification('Произошла ошибка при обработке запроса', 'danger');
+                console.error('Error:', error);
             });
         });
     });

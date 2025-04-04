@@ -83,6 +83,7 @@ $router->addRoute('rewrite/view', 'RewriteController', 'view');
 $router->addRoute('rewrite/process', 'RewriteController', 'process');
 $router->addRoute('rewrite/post', 'RewriteController', 'publishPost');
 $router->addRoute('rewrite/delete', 'RewriteController', 'delete');
+$router->addRoute('rewrite/deleteVersion', 'RewriteController', 'deleteVersion');
 
 $router->addRoute('parsing', 'ParsingController', 'index');
 $router->addRoute('parsing/add', 'ParsingController', 'add');
@@ -90,6 +91,7 @@ $router->addRoute('parsing/edit', 'ParsingController', 'edit');
 $router->addRoute('parsing/delete', 'ParsingController', 'delete');
 $router->addRoute('parsing/toggle', 'ParsingController', 'toggle');
 $router->addRoute('parsing/parse', 'ParsingController', 'parse');
+
 
 // Обрабатываем запрос
 $router->dispatch();
