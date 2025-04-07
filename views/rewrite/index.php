@@ -1,8 +1,13 @@
 <div class="row">
     <div class="col-md-12">
         <div class="card mb-4">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Контент для реврайта</h5>
+                <div class="bulk-actions-original" style="display: none;">
+                    <button type="button" class="btn btn-danger btn-sm delete-selected-original">
+                        <i class="fas fa-trash"></i> Удалить выбранное
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($originalContent)): ?>
@@ -14,6 +19,11 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th width="40">
+                                    <div class="form-check">
+                                        <input class="form-check-input select-all-original" type="checkbox" value="" id="selectAllOriginal">
+                                    </div>
+                                </th>
                                 <th>Заголовок</th>
                                 <th>Источник</th>
                                 <th>Дата публикации</th>
@@ -23,7 +33,12 @@
                         </thead>
                         <tbody>
                             <?php foreach ($originalContent as $content): ?>
-                            <tr>
+                            <tr class="content-row" data-id="<?php echo $content['id']; ?>">
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input original-content-checkbox" type="checkbox" value="<?php echo $content['id']; ?>">
+                                    </div>
+                                </td>
                                 <td>
                                     <div class="d-flex flex-column">
                                         <span class="fw-bold"><?php echo htmlspecialchars($content['title']); ?></span>
@@ -53,9 +68,16 @@
                                 <td><?php echo date('d.m.Y H:i', strtotime($content['published_date'])); ?></td>
                                 <td><?php echo date('d.m.Y H:i', strtotime($content['parsed_at'])); ?></td>
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-primary rewrite-btn" data-content-id="<?php echo $content['id']; ?>">
-                                        <i class="fas fa-sync-alt"></i> Реврайт
-                                    </button>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-primary rewrite-btn" data-content-id="<?php echo $content['id']; ?>">
+                                            <i class="fas fa-sync-alt"></i> Реврайт
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger delete-original-btn" 
+                                                data-delete-url="/rewrite/deleteOriginal/<?php echo $content['id']; ?>"
+                                                data-item-name="контент '<?php echo htmlspecialchars($content['title']); ?>'">
+                                            <i class="fas fa-trash"></i> Удалить
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -67,8 +89,13 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Реврайтнутый контент</h5>
+                <div class="bulk-actions-rewritten" style="display: none;">
+                    <button type="button" class="btn btn-danger btn-sm delete-selected-rewritten">
+                        <i class="fas fa-trash"></i> Удалить выбранное
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($rewrittenContent)): ?>
@@ -80,6 +107,11 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th width="40">
+                                    <div class="form-check">
+                                        <input class="form-check-input select-all-rewritten" type="checkbox" value="" id="selectAllRewritten">
+                                    </div>
+                                </th>
                                 <th>Заголовок</th>
                                 <th>Источник</th>
                                 <th>Версий</th>
@@ -90,7 +122,12 @@
                         </thead>
                         <tbody>
                             <?php foreach ($rewrittenContent as $content): ?>
-                            <tr>
+                            <tr class="content-row" data-id="<?php echo $content['id']; ?>">
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input rewritten-content-checkbox" type="checkbox" value="<?php echo $content['id']; ?>">
+                                    </div>
+                                </td>
                                 <td>
                                     <div class="d-flex flex-column">
                                         <span class="fw-bold"><?php echo htmlspecialchars($content['title']); ?></span>
@@ -211,11 +248,13 @@
 <?php endif; ?>
 
 <script>
-// Обработка кнопки реврайта
 document.addEventListener('DOMContentLoaded', function() {
-    const rewriteBtns = document.querySelectorAll('.rewrite-btn');
+    // Инициализация модальных окон
     const rewriteModal = new bootstrap.Modal(document.getElementById('rewriteModal'));
+    const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
     
+    // Обработка кнопки реврайта
+    const rewriteBtns = document.querySelectorAll('.rewrite-btn');
     rewriteBtns.forEach(function(btn) {
         btn.addEventListener('click', function() {
             const contentId = this.getAttribute('data-content-id');
@@ -259,6 +298,256 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Используем глобальную функцию showNotification из main.js
+    // Обработка кнопок удаления оригинального контента
+    const deleteOriginalBtns = document.querySelectorAll('.delete-original-btn');
+    deleteOriginalBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const deleteUrl = this.getAttribute('data-delete-url');
+            const itemName = this.getAttribute('data-item-name');
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = itemName;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на удаление
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при удалении: ' + error.message, 'danger');
+                    console.error('Delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    });
+    
+    // Обработка выбора всех оригинальных контентов
+    const selectAllOriginal = document.getElementById('selectAllOriginal');
+    const originalCheckboxes = document.querySelectorAll('.original-content-checkbox');
+    const bulkActionsOriginal = document.querySelector('.bulk-actions-original');
+    
+    if (selectAllOriginal) {
+        selectAllOriginal.addEventListener('change', function() {
+            const isChecked = this.checked;
+            originalCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            // Показываем/скрываем кнопки массовых действий
+            if (isChecked && originalCheckboxes.length > 0) {
+                bulkActionsOriginal.style.display = 'block';
+            } else {
+                bulkActionsOriginal.style.display = 'none';
+            }
+        });
+    }
+    
+    // Обработка выбора отдельных оригинальных контентов
+    originalCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Проверяем, есть ли выбранные элементы
+            const hasChecked = Array.from(originalCheckboxes).some(cb => cb.checked);
+            
+            // Показываем/скрываем кнопки массовых действий
+            bulkActionsOriginal.style.display = hasChecked ? 'block' : 'none';
+            
+            // Обновляем состояние "выбрать все"
+            if (!hasChecked) {
+                selectAllOriginal.checked = false;
+            } else if (Array.from(originalCheckboxes).every(cb => cb.checked)) {
+                selectAllOriginal.checked = true;
+            }
+        });
+    });
+    
+    // Обработка кнопки массового удаления оригинального контента
+    const deleteSelectedOriginalBtn = document.querySelector('.delete-selected-original');
+    if (deleteSelectedOriginalBtn) {
+        deleteSelectedOriginalBtn.addEventListener('click', function() {
+            // Собираем ID выбранных элементов
+            const selectedIds = Array.from(originalCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                showNotification('Не выбрано ни одного элемента для удаления', 'warning');
+                return;
+            }
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = `выбранные элементы (${selectedIds.length} шт.)`;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на массовое удаление
+                fetch('/rewrite/bulkDeleteOriginal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при массовом удалении: ' + error.message, 'danger');
+                    console.error('Bulk delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    }
+    
+    // Обработка выбора всех реврайтнутых контентов
+    const selectAllRewritten = document.getElementById('selectAllRewritten');
+    const rewrittenCheckboxes = document.querySelectorAll('.rewritten-content-checkbox');
+    const bulkActionsRewritten = document.querySelector('.bulk-actions-rewritten');
+    
+    if (selectAllRewritten) {
+        selectAllRewritten.addEventListener('change', function() {
+            const isChecked = this.checked;
+            rewrittenCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            // Показываем/скрываем кнопки массовых действий
+            if (isChecked && rewrittenCheckboxes.length > 0) {
+                bulkActionsRewritten.style.display = 'block';
+            } else {
+                bulkActionsRewritten.style.display = 'none';
+            }
+        });
+    }
+    
+    // Обработка выбора отдельных реврайтнутых контентов
+    rewrittenCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Проверяем, есть ли выбранные элементы
+            const hasChecked = Array.from(rewrittenCheckboxes).some(cb => cb.checked);
+            
+            // Показываем/скрываем кнопки массовых действий
+            bulkActionsRewritten.style.display = hasChecked ? 'block' : 'none';
+            
+            // Обновляем состояние "выбрать все"
+            if (!hasChecked) {
+                selectAllRewritten.checked = false;
+            } else if (Array.from(rewrittenCheckboxes).every(cb => cb.checked)) {
+                selectAllRewritten.checked = true;
+            }
+        });
+    });
+    
+    // Обработка кнопки массового удаления реврайтнутого контента
+    const deleteSelectedRewrittenBtn = document.querySelector('.delete-selected-rewritten');
+    if (deleteSelectedRewrittenBtn) {
+        deleteSelectedRewrittenBtn.addEventListener('click', function() {
+            // Собираем ID выбранных элементов
+            const selectedIds = Array.from(rewrittenCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                showNotification('Не выбрано ни одного элемента для удаления', 'warning');
+                return;
+            }
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = `выбранные элементы (${selectedIds.length} шт.)`;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на массовое удаление
+                fetch('/rewrite/bulkDelete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при массовом удалении: ' + error.message, 'danger');
+                    console.error('Bulk delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    }
 });
 </script>
