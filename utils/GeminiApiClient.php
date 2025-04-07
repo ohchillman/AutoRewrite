@@ -53,6 +53,7 @@ class GeminiApiClient {
         if ($this->useOpenRouter) {
             return [
                 'models' => [
+                    ['name' => 'google/gemini-2.5-pro-exp-03-25:free'],
                     ['name' => 'google/gemini-2.0-flash-thinking-exp:free'],
                     ['name' => 'google/gemini-pro-2.0-exp:free'],
                     ['name' => 'google/gemini-pro-1.5:free'],
