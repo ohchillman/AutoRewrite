@@ -604,9 +604,39 @@ class RewriteController extends BaseController {
                         Logger::debug("Запуск генерации изображения для версии {$versionNumber}", 'rewrite_debug');
                         // Получаем шаблон для промпта изображения
                         $imagePromptTemplate = $settings['image_prompt_template'] ?? 'Create a professional image for: {content}';
+
+                        $styleModifiers = [
+                            'in a breaking news style',
+                            'with high contrast and sharp details',
+                            'in a journalistic photo style',
+                            'as an infographic',
+                            'in a minimalist news graphic style',
+                            'with dramatic shadows and highlights',
+                            'in a sleek and modern style',
+                            'with a monochromatic palette',
+                            'as a vintage newspaper illustration',
+                            'in a cinematic style',
+                            'with bold typography overlay',
+                            'in a realistic photo manipulation style',
+                            'as a 3D render',
+                            'in a collage style',
+                            'with grunge texture',
+                            'in a futuristic cyberpunk style',
+                            'with subtle gradients and clean lines',
+                            'as a political cartoon',
+                            'in an editorial illustration style',
+                            'with data visualization elements'
+                        ];
+                        
+                        $randomModifier = $styleModifiers[array_rand($styleModifiers)];
+                        $imagePrompt = str_replace(
+                            '{content}', 
+                            $rewrittenTitle . '. ' . substr($rewrittenContent, 0, 300) . ' ' . $randomModifier, 
+                            $imagePromptTemplate
+                        );
                         
                         // Создаем промпт для генерации изображения на основе реврайтнутого заголовка
-                        $imagePrompt = str_replace('{content}', $rewrittenTitle . '. ' . substr($rewrittenContent, 0, 500), $imagePromptTemplate);
+                        // $imagePrompt = str_replace('{content}', $rewrittenTitle . '. ' . substr($rewrittenContent, 0, 500), $imagePromptTemplate);
                         
                         // Получаем API ключ для генерации изображений
                         $imageApiKey = $settings['huggingface_api_key'] ?? '';
