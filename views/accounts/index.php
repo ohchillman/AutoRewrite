@@ -30,13 +30,30 @@
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label for="proxy_id" class="form-label">Прокси (опционально)</label>
-                                <select class="form-select" id="proxy_id" name="proxy_id">
-                                    <option value="">Без прокси</option>
-                                    <?php foreach ($proxies as $proxy): ?>
-                                    <option value="<?php echo $proxy['id']; ?>"><?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <label for="proxy_id" class="form-label">Прокси</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="proxy_id" name="proxy_id">
+                                        <option value="">Без прокси</option>
+                                        <?php foreach ($proxies as $proxy): ?>
+                                        <option value="<?php echo $proxy['id']; ?>" 
+                                            data-status="<?php echo htmlspecialchars($proxy['status']); ?>"
+                                            data-ip="<?php echo htmlspecialchars($proxy['ip']); ?>"
+                                            data-port="<?php echo htmlspecialchars($proxy['port']); ?>"
+                                            data-protocol="<?php echo htmlspecialchars($proxy['protocol']); ?>">
+                                            <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>
+                                            <?php if($proxy['status'] == 'working'): ?>
+                                                <span class="text-success">✓</span>
+                                            <?php elseif($proxy['status'] == 'failed'): ?>
+                                                <span class="text-danger">✗</span>
+                                            <?php endif; ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" id="testProxyBtn" disabled>
+                                        <i class="fas fa-sync-alt"></i> Проверить
+                                    </button>
+                                </div>
+                                <div id="proxyStatus" class="form-text mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -155,7 +172,18 @@
                         </div>
                     </div>
 
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Проверка аккаунта</h6>
+                                    <p class="card-text">После сохранения аккаунта вы сможете проверить его работоспособность с выбранным прокси</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Сохранить аккаунт
                         </button>
@@ -167,10 +195,17 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Список аккаунтов</h5>
-                <div class="bulk-actions-accounts" style="display: none;">
-                    <button type="button" class="btn btn-danger btn-sm delete-selected-accounts">
-                        <i class="fas fa-trash"></i> Удалить выбранное
-                    </button>
+                <div class="d-flex">
+                    <div class="bulk-actions-accounts me-2" style="display: none;">
+                        <button type="button" class="btn btn-danger btn-sm delete-selected-accounts">
+                            <i class="fas fa-trash"></i> Удалить выбранное
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-info btn-sm verify-all-accounts">
+                            <i class="fas fa-check-circle"></i> Проверить все аккаунты
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
@@ -193,6 +228,7 @@
                                 <th>Логин</th>
                                 <th>Прокси</th>
                                 <th>Статус</th>
+                                <th>Проверка</th>
                                 <th>Действия</th>
                             </tr>
                         </thead>
@@ -207,11 +243,25 @@
                                 <td><?php echo htmlspecialchars($account['name']); ?></td>
                                 <td><?php echo htmlspecialchars($account['account_type_name']); ?></td>
                                 <td><?php echo htmlspecialchars($account['username'] ?: '-'); ?></td>
-                                <td><?php echo !empty($account['proxy_ip']) ? htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']) : '-'; ?></td>
+                                <td>
+                                    <?php if (!empty($account['proxy_ip'])): ?>
+                                        <span class="badge <?php echo $account['proxy_status'] == 'working' ? 'bg-success' : 'bg-danger'; ?>">
+                                            <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="badge <?php echo $account['is_active'] ? 'bg-success' : 'bg-danger'; ?>">
                                         <?php echo $account['is_active'] ? 'Активен' : 'Неактивен'; ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-info verify-account-btn" data-id="<?php echo $account['id']; ?>">
+                                        <i class="fas fa-check-circle"></i> Проверить
+                                    </button>
+                                    <div class="account-verification-status-<?php echo $account['id']; ?> mt-1"></div>
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
@@ -279,39 +329,31 @@
 <?php endif; ?>
 
 <script>
-// Показывать/скрывать поля в зависимости от типа аккаунта
 document.addEventListener('DOMContentLoaded', function() {
-    // Инициализация модального окна
+    // Инициализация модального окна для подтверждения удаления
     const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
     
     // Обработка кнопок удаления
-    const deleteBtns = document.querySelectorAll('.delete-btn');
-    deleteBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
+    document.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', function() {
             const deleteUrl = this.getAttribute('data-delete-url');
             const itemName = this.getAttribute('data-item-name');
             
-            // Настраиваем модальное окно
             document.getElementById('deleteItemName').textContent = itemName;
-            
-            // Настраиваем кнопку подтверждения
             document.getElementById('confirmDeleteBtn').onclick = function() {
-                // Скрываем модальное окно
                 deleteConfirmModal.hide();
                 
-                // Отправляем запрос на удаление
                 fetch(deleteUrl, {
                     method: 'POST',
                     headers: {
+                        'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
                 .then(response => response.json())
                 .then(data => {
-                    // Показываем сообщение
                     showNotification(data.message, data.success ? 'success' : 'danger');
                     
-                    // Если успешно, обновляем страницу или перенаправляем
                     if (data.success) {
                         if (data.redirect) {
                             setTimeout(function() {
@@ -325,25 +367,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 })
                 .catch(error => {
-                    // Показываем сообщение об ошибке
                     showNotification('Произошла ошибка при удалении: ' + error.message, 'danger');
                     console.error('Delete error:', error);
                 });
             };
             
-            // Показываем модальное окно
             deleteConfirmModal.show();
         });
     });
     
-    // Обработка выбора всех аккаунтов
-    const selectAllAccounts = document.getElementById('selectAllAccounts');
+    // Обработка выбора "выбрать все"
+    const selectAllAccounts = document.querySelector('.select-all-accounts');
     const accountCheckboxes = document.querySelectorAll('.account-checkbox');
     const bulkActionsAccounts = document.querySelector('.bulk-actions-accounts');
     
     if (selectAllAccounts) {
         selectAllAccounts.addEventListener('change', function() {
             const isChecked = this.checked;
+            
             accountCheckboxes.forEach(checkbox => {
                 checkbox.checked = isChecked;
             });
@@ -457,6 +498,187 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (accountType.includes('threads')) {
                 document.querySelector('.threads-fields').classList.remove('d-none');
             }
+        });
+    }
+    
+    // Обработка изменения выбора прокси в форме добавления
+    const proxySelect = document.getElementById('proxy_id');
+    const testProxyBtn = document.getElementById('testProxyBtn');
+    const proxyStatus = document.getElementById('proxyStatus');
+    
+    if (proxySelect) {
+        // Функция для обновления статуса прокси
+        function updateProxyStatus() {
+            const selectedOption = proxySelect.options[proxySelect.selectedIndex];
+            if (selectedOption.value) {
+                const status = selectedOption.getAttribute('data-status');
+                if (status === 'working') {
+                    proxyStatus.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Прокси работает</span>';
+                } else if (status === 'failed') {
+                    proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> Прокси не работает</span>';
+                } else {
+                    proxyStatus.innerHTML = '<span class="text-warning"><i class="fas fa-question-circle"></i> Статус прокси неизвестен</span>';
+                }
+                testProxyBtn.disabled = false;
+            } else {
+                proxyStatus.innerHTML = '';
+                testProxyBtn.disabled = true;
+            }
+        }
+        
+        // Инициализация статуса прокси
+        updateProxyStatus();
+        
+        // Обработчик изменения выбора прокси
+        proxySelect.addEventListener('change', updateProxyStatus);
+        
+        // Обработчик кнопки проверки прокси
+        testProxyBtn.addEventListener('click', function() {
+            const proxyId = proxySelect.value;
+            if (!proxyId) return;
+            
+            // Показываем индикатор загрузки
+            proxyStatus.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin"></i> Проверка прокси...</span>';
+            testProxyBtn.disabled = true;
+            
+            // Отправляем запрос на проверку прокси
+            fetch('/proxies/test/' + proxyId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    proxyStatus.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> ' + data.message + '</span>';
+                } else {
+                    proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> ' + data.message + '</span>';
+                }
+                testProxyBtn.disabled = false;
+            })
+            .catch(error => {
+                proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка при проверке прокси</span>';
+                testProxyBtn.disabled = false;
+                console.error('Proxy test error:', error);
+            });
+        });
+    }
+    
+    // Обработчик кнопок проверки аккаунта
+    document.querySelectorAll('.verify-account-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const accountId = this.getAttribute('data-id');
+            const statusContainer = document.querySelector('.account-verification-status-' + accountId);
+            
+            // Показываем индикатор загрузки
+            statusContainer.innerHTML = '<div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Загрузка...</span></div> Проверка...';
+            this.disabled = true;
+            
+            // Отправляем запрос на проверку аккаунта
+            fetch('/accounts/verify/' + accountId, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusContainer.innerHTML = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> Аккаунт работает</span>';
+                } else {
+                    statusContainer.innerHTML = '<span class="badge bg-danger"><i class="fas fa-times-circle"></i> Ошибка</span>';
+                    if (data.message) {
+                        statusContainer.innerHTML += '<div class="small text-danger mt-1">' + data.message + '</div>';
+                    }
+                }
+                this.disabled = false;
+            })
+            .catch(error => {
+                statusContainer.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка проверки</span>';
+                this.disabled = false;
+                console.error('Account verification error:', error);
+            });
+        });
+    });
+    
+    // Обработчик кнопки проверки всех аккаунтов
+    const verifyAllAccountsBtn = document.querySelector('.verify-all-accounts');
+    if (verifyAllAccountsBtn) {
+        verifyAllAccountsBtn.addEventListener('click', function() {
+            // Получаем все кнопки проверки аккаунтов
+            const verifyButtons = document.querySelectorAll('.verify-account-btn');
+            if (verifyButtons.length === 0) return;
+            
+            // Отключаем кнопку проверки всех аккаунтов
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
+            
+            // Счетчик для отслеживания завершения всех проверок
+            let completedChecks = 0;
+            
+            // Функция для проверки одного аккаунта
+            function verifyAccount(button) {
+                const accountId = button.getAttribute('data-id');
+                const statusContainer = document.querySelector('.account-verification-status-' + accountId);
+                
+                // Показываем индикатор загрузки
+                statusContainer.innerHTML = '<div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Загрузка...</span></div> Проверка...';
+                button.disabled = true;
+                
+                // Отправляем запрос на проверку аккаунта
+                fetch('/accounts/verify/' + accountId, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusContainer.innerHTML = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> Аккаунт работает</span>';
+                    } else {
+                        statusContainer.innerHTML = '<span class="badge bg-danger"><i class="fas fa-times-circle"></i> Ошибка</span>';
+                        if (data.message) {
+                            statusContainer.innerHTML += '<div class="small text-danger mt-1">' + data.message + '</div>';
+                        }
+                    }
+                    button.disabled = false;
+                    
+                    // Увеличиваем счетчик завершенных проверок
+                    completedChecks++;
+                    
+                    // Если все проверки завершены, разблокируем кнопку проверки всех аккаунтов
+                    if (completedChecks === verifyButtons.length) {
+                        verifyAllAccountsBtn.disabled = false;
+                        verifyAllAccountsBtn.innerHTML = '<i class="fas fa-check-circle"></i> Проверить все аккаунты';
+                        showNotification('Проверка всех аккаунтов завершена', 'success');
+                    }
+                })
+                .catch(error => {
+                    statusContainer.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка проверки</span>';
+                    button.disabled = false;
+                    console.error('Account verification error:', error);
+                    
+                    // Увеличиваем счетчик завершенных проверок
+                    completedChecks++;
+                    
+                    // Если все проверки завершены, разблокируем кнопку проверки всех аккаунтов
+                    if (completedChecks === verifyButtons.length) {
+                        verifyAllAccountsBtn.disabled = false;
+                        verifyAllAccountsBtn.innerHTML = '<i class="fas fa-check-circle"></i> Проверить все аккаунты';
+                        showNotification('Проверка всех аккаунтов завершена', 'success');
+                    }
+                });
+            }
+            
+            // Запускаем проверку для каждого аккаунта с небольшой задержкой
+            verifyButtons.forEach((button, index) => {
+                setTimeout(() => {
+                    verifyAccount(button);
+                }, index * 500); // Задержка 500 мс между запросами
+            });
         });
     }
 });

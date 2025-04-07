@@ -25,15 +25,30 @@
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label for="proxy_id" class="form-label">Прокси (опционально)</label>
-                                <select class="form-select" id="proxy_id" name="proxy_id">
-                                    <option value="">Без прокси</option>
-                                    <?php foreach ($proxies as $proxy): ?>
-                                    <option value="<?php echo $proxy['id']; ?>" <?php echo ($account['proxy_id'] == $proxy['id']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <label for="proxy_id" class="form-label">Прокси</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="proxy_id" name="proxy_id">
+                                        <option value="">Без прокси</option>
+                                        <?php foreach ($proxies as $proxy): ?>
+                                        <option value="<?php echo $proxy['id']; ?>" <?php echo ($account['proxy_id'] == $proxy['id']) ? 'selected' : ''; ?> 
+                                            data-status="<?php echo htmlspecialchars($proxy['status']); ?>"
+                                            data-ip="<?php echo htmlspecialchars($proxy['ip']); ?>"
+                                            data-port="<?php echo htmlspecialchars($proxy['port']); ?>"
+                                            data-protocol="<?php echo htmlspecialchars($proxy['protocol']); ?>">
+                                            <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>
+                                            <?php if($proxy['status'] == 'working'): ?>
+                                                <span class="text-success">✓</span>
+                                            <?php elseif($proxy['status'] == 'failed'): ?>
+                                                <span class="text-danger">✗</span>
+                                            <?php endif; ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" id="testProxyBtn" <?php echo empty($account['proxy_id']) ? 'disabled' : ''; ?>>
+                                        <i class="fas fa-sync-alt"></i> Проверить
+                                    </button>
+                                </div>
+                                <div id="proxyStatus" class="form-text mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -123,7 +138,22 @@
                     </div>
                     <?php endswitch; ?>
 
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Проверка аккаунта</h6>
+                                    <p class="card-text">Проверьте работоспособность аккаунта с текущими настройками и прокси</p>
+                                    <button type="button" id="verifyAccountBtn" class="btn btn-info">
+                                        <i class="fas fa-check-circle"></i> Проверить аккаунт
+                                    </button>
+                                    <div id="accountVerificationStatus" class="mt-3"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Сохранить изменения
                         </button>
@@ -133,3 +163,107 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка изменения выбора прокси
+    const proxySelect = document.getElementById('proxy_id');
+    const testProxyBtn = document.getElementById('testProxyBtn');
+    const proxyStatus = document.getElementById('proxyStatus');
+    
+    // Функция для обновления статуса прокси
+    function updateProxyStatus() {
+        const selectedOption = proxySelect.options[proxySelect.selectedIndex];
+        if (selectedOption.value) {
+            const status = selectedOption.getAttribute('data-status');
+            if (status === 'working') {
+                proxyStatus.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Прокси работает</span>';
+            } else if (status === 'failed') {
+                proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> Прокси не работает</span>';
+            } else {
+                proxyStatus.innerHTML = '<span class="text-warning"><i class="fas fa-question-circle"></i> Статус прокси неизвестен</span>';
+            }
+            testProxyBtn.disabled = false;
+        } else {
+            proxyStatus.innerHTML = '';
+            testProxyBtn.disabled = true;
+        }
+    }
+    
+    // Инициализация статуса прокси
+    updateProxyStatus();
+    
+    // Обработчик изменения выбора прокси
+    proxySelect.addEventListener('change', updateProxyStatus);
+    
+    // Обработчик кнопки проверки прокси
+    testProxyBtn.addEventListener('click', function() {
+        const proxyId = proxySelect.value;
+        if (!proxyId) return;
+        
+        // Показываем индикатор загрузки
+        proxyStatus.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin"></i> Проверка прокси...</span>';
+        testProxyBtn.disabled = true;
+        
+        // Отправляем запрос на проверку прокси
+        fetch('/proxies/test/' + proxyId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                proxyStatus.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> ' + data.message + '</span>';
+            } else {
+                proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> ' + data.message + '</span>';
+            }
+            testProxyBtn.disabled = false;
+        })
+        .catch(error => {
+            proxyStatus.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка при проверке прокси</span>';
+            testProxyBtn.disabled = false;
+            console.error('Proxy test error:', error);
+        });
+    });
+    
+    // Обработчик кнопки проверки аккаунта
+    const verifyAccountBtn = document.getElementById('verifyAccountBtn');
+    const accountVerificationStatus = document.getElementById('accountVerificationStatus');
+    
+    verifyAccountBtn.addEventListener('click', function() {
+        // Собираем данные формы
+        const formData = new FormData(document.querySelector('.ajax-form'));
+        const accountId = <?php echo $account['id']; ?>;
+        
+        // Показываем индикатор загрузки
+        accountVerificationStatus.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Проверка аккаунта...</div>';
+        verifyAccountBtn.disabled = true;
+        
+        // Отправляем запрос на проверку аккаунта
+        fetch('/accounts/verify/' + accountId, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                accountVerificationStatus.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
+            } else {
+                accountVerificationStatus.innerHTML = '<div class="alert alert-danger"><i class="fas fa-times-circle"></i> ' + data.message + '</div>';
+            }
+            verifyAccountBtn.disabled = false;
+        })
+        .catch(error => {
+            accountVerificationStatus.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка при проверке аккаунта</div>';
+            verifyAccountBtn.disabled = false;
+            console.error('Account verification error:', error);
+        });
+    });
+});
+</script>

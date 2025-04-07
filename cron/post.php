@@ -3,23 +3,28 @@
  * Скрипт для автоматической публикации контента в социальных сетях
  * 
  * Запускается через cron для регулярной публикации реврайтнутого контента
+ * Использует прокси для всех взаимодействий с аккаунтами
  */
 
 // Подключение необходимых файлов
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../utils/TwitterApiClient.php';
-require_once __DIR__ . '/../utils/LinkedInApiClient.php';
-require_once __DIR__ . '/../utils/YouTubeApiClient.php';
-require_once __DIR__ . '/../utils/ThreadsSeleniumClient.php';
+require_once __DIR__ . '/../utils/proxy/ProxyManager.php';
+require_once __DIR__ . '/../utils/proxy/SocialMediaClientFactory.php';
 require_once __DIR__ . '/../utils/Logger.php';
 
 // Инициализация логгера
 $logger = new Logger();
-$logger->log('info', 'Starting content posting process');
+$logger->log('info', 'Starting content posting process with proxy integration');
 
 try {
     // Подключение к базе данных
     $db = Database::getInstance();
+    
+    // Инициализация менеджера прокси
+    $proxyManager = new ProxyManager($db, $logger);
+    
+    // Инициализация фабрики клиентов социальных сетей
+    $clientFactory = new SocialMediaClientFactory($db, $proxyManager, $logger);
     
     // Получение настроек API
     $settings = $db->fetchOne("SELECT * FROM settings WHERE id = 1");
@@ -29,16 +34,30 @@ try {
         exit;
     }
     
-    // Получение активных аккаунтов
-    $accounts = $db->fetchAll("SELECT * FROM accounts WHERE active = 1");
+    // Получение активных аккаунтов с информацией о типе и прокси
+    $accounts = $db->fetchAll("
+        SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port, 
+               p.protocol as proxy_protocol, p.username as proxy_username, p.password as proxy_password
+        FROM accounts a
+        JOIN account_types at ON a.account_type_id = at.id
+        LEFT JOIN proxies p ON a.proxy_id = p.id
+        WHERE a.is_active = 1
+    ");
     
     if (empty($accounts)) {
         $logger->log('warning', 'No active social media accounts found');
         exit;
     }
     
+    $logger->log('info', 'Found ' . count($accounts) . ' active accounts');
+    
     // Получение реврайтнутого контента для публикации
-    $content = $db->fetchAll("SELECT * FROM content WHERE status = 'rewritten' AND posted = 0 LIMIT 10");
+    $content = $db->fetchAll("
+        SELECT * FROM content 
+        WHERE status = 'rewritten' AND posted = 0 
+        ORDER BY id ASC
+        LIMIT 10
+    ");
     
     if (empty($content)) {
         $logger->log('info', 'No rewritten content to post');
@@ -64,42 +83,43 @@ try {
         
         foreach ($accounts as $account) {
             try {
-                $result = false;
+                $logger->log('info', "Attempting to post to {$account['account_type_name']} account: {$account['name']} (ID: {$account['id']})");
                 
-                switch ($account['type']) {
+                // Проверяем наличие прокси для аккаунта
+                if (!empty($account['proxy_id'])) {
+                    $logger->log('info', "Account uses proxy: {$account['proxy_ip']}:{$account['proxy_port']}");
+                } else {
+                    $logger->log('info', "Account does not use proxy");
+                }
+                
+                // Создаем клиент для аккаунта с использованием фабрики
+                $client = $clientFactory->createClientForAccount($account);
+                
+                if (!$client) {
+                    $logger->log('error', "Failed to create client for {$account['account_type_name']} account: {$account['name']}");
+                    $postResults[$account['id']] = false;
+                    continue;
+                }
+                
+                $result = false;
+                $accountType = strtolower($account['account_type_name']);
+                
+                // Публикация контента в зависимости от типа аккаунта
+                switch ($accountType) {
                     case 'twitter':
-                        if (empty($settings['twitter_api_key']) || empty($settings['twitter_api_secret']) || 
-                            empty($account['access_token']) || empty($account['access_token_secret'])) {
-                            $logger->log('error', 'Twitter API credentials not configured for account ID: ' . $account['id']);
-                            continue;
-                        }
-                        
-                        $twitterClient = new TwitterApiClient(
-                            $settings['twitter_api_key'],
-                            $settings['twitter_api_secret'],
-                            $account['access_token'],
-                            $account['access_token_secret']
-                        );
-                        
-                        $response = $twitterClient->postTweet($twitterContent);
+                        $response = $client->postTweet($twitterContent);
                         $result = !isset($response['error']);
+                        if (!$result && isset($response['error'])) {
+                            $logger->log('error', "Twitter API error: " . json_encode($response['error']));
+                        }
                         break;
                         
                     case 'linkedin':
-                        if (empty($settings['linkedin_client_id']) || empty($settings['linkedin_client_secret']) || 
-                            empty($account['access_token'])) {
-                            $logger->log('error', 'LinkedIn API credentials not configured for account ID: ' . $account['id']);
-                            continue;
-                        }
-                        
-                        $linkedinClient = new LinkedInApiClient(
-                            $settings['linkedin_client_id'],
-                            $settings['linkedin_client_secret'],
-                            $account['access_token']
-                        );
-                        
-                        $response = $linkedinClient->postTextContent($fullContent);
+                        $response = $client->postTextContent($fullContent);
                         $result = !isset($response['error']);
+                        if (!$result && isset($response['error'])) {
+                            $logger->log('error', "LinkedIn API error: " . json_encode($response['error']));
+                        }
                         break;
                         
                     case 'youtube':
@@ -108,34 +128,25 @@ try {
                         continue;
                         
                     case 'threads':
-                        if (empty($account['username']) || empty($account['password'])) {
-                            $logger->log('error', 'Threads credentials not configured for account ID: ' . $account['id']);
-                            continue;
-                        }
-                        
-                        $threadsClient = new ThreadsSeleniumClient(
-                            $account['username'],
-                            $account['password']
-                        );
-                        
-                        $result = $threadsClient->login() && $threadsClient->postContent($fullContent);
-                        $threadsClient->close();
+                        // Для Threads используем Selenium клиент
+                        $result = $client->login() && $client->postContent($fullContent);
+                        $client->close();
                         break;
                         
                     default:
-                        $logger->log('error', 'Unknown account type: ' . $account['type']);
+                        $logger->log('error', "Unknown account type: {$accountType}");
                         continue;
                 }
                 
                 if ($result) {
-                    $logger->log('info', 'Content posted successfully to ' . $account['type'] . ' account: ' . $account['name']);
+                    $logger->log('info', "Content posted successfully to {$accountType} account: {$account['name']}");
                     $postResults[$account['id']] = true;
                 } else {
-                    $logger->log('error', 'Failed to post content to ' . $account['type'] . ' account: ' . $account['name']);
+                    $logger->log('error', "Failed to post content to {$accountType} account: {$account['name']}");
                     $postResults[$account['id']] = false;
                 }
             } catch (Exception $e) {
-                $logger->log('error', 'Error posting to ' . $account['type'] . ' account ' . $account['name'] . ': ' . $e->getMessage());
+                $logger->log('error', "Error posting to {$account['account_type_name']} account {$account['name']}: " . $e->getMessage());
                 $postResults[$account['id']] = false;
             }
         }
