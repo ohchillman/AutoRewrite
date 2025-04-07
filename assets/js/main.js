@@ -201,11 +201,27 @@ function setupDeleteConfirmation() {
             const itemName = this.getAttribute('data-item-name');
             
             // Настраиваем модальное окно
-            const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-            document.getElementById('deleteItemName').textContent = itemName;
+            const modalElement = document.getElementById('deleteConfirmModal');
+            if (!modalElement) {
+                console.error('Элемент модального окна не найден');
+                return;
+            }
+            const modal = new bootstrap.Modal(modalElement);
+            
+            const deleteItemNameElement = document.getElementById('deleteItemName');
+            if (deleteItemNameElement) {
+                deleteItemNameElement.textContent = itemName;
+            } else {
+                console.error('Элемент для отображения имени не найден');
+            }
             
             // Настраиваем кнопку подтверждения
-            document.getElementById('confirmDeleteBtn').onclick = function() {
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            if (!confirmBtn) {
+                console.error('Кнопка подтверждения не найдена');
+                return;
+            }
+            confirmBtn.onclick = function() {
                 // Скрываем модальное окно
                 modal.hide();
                 
@@ -264,6 +280,14 @@ function setupDeleteConfirmation() {
  * Настройка реврайта контента
  */
 function setupRewriteContent() {
+    // Инициализация модального окна для реврайта
+    const modalElement = document.getElementById('rewriteModal');
+    if (!modalElement) {
+        console.error('Модальное окно для реврайта не найдено');
+        return;
+    }
+    const rewriteModal = new bootstrap.Modal(modalElement);
+    
     // Найдите все кнопки реврайта
     document.querySelectorAll('.rewrite-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -408,15 +432,26 @@ function showToast(type, message) {
     `;
     
     // Добавляем уведомление в контейнер
-    document.querySelector('.toast-container').insertAdjacentHTML('beforeend', toastHtml);
+    const toastContainer = document.querySelector('.toast-container');
+    if (toastContainer) {
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        
+        // Инициализируем и показываем уведомление
+        const toastElement = document.getElementById(toastId);
+        if (toastElement) {
+            const toast = new bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
+            toast.show();
+            
+            // Удаляем уведомление после скрытия
+            toastElement.addEventListener('hidden.bs.toast', function() {
+                toastElement.remove();
+            });
+        } else {
+            console.error('Не удалось найти элемент уведомления с ID:', toastId);
+        }
+    } else {
+        console.error('Не удалось найти контейнер для уведомлений');
+    }
     
-    // Инициализируем и показываем уведомление
-    const toastElement = document.getElementById(toastId);
-    const toast = new bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
-    toast.show();
-    
-    // Удаляем уведомление после скрытия
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        toastElement.remove();
-    });
+
 }
