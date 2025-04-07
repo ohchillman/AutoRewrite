@@ -398,6 +398,7 @@ class AccountsController extends BaseController {
            Logger::error('Ошибка при получении списка прокси: ' . $e->getMessage(), 'accounts');
            return [];
        }
+    }
     /**
      * Проверка работоспособности аккаунта
      * 
@@ -511,4 +512,3 @@ class AccountsController extends BaseController {
         }
     }
    }
-}
