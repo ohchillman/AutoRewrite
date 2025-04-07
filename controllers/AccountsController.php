@@ -121,6 +121,57 @@ class AccountsController extends BaseController {
    }
    
    /**
+    * Массовое удаление аккаунтов
+    */
+   public function bulkDelete() {
+       try {
+           // Проверяем, что запрос отправлен методом POST
+           if (!$this->isMethod('POST')) {
+               return $this->handleAjaxError('Метод не поддерживается', 405);
+           }
+           
+           // Получаем данные из JSON тела запроса
+           $data = $this->getJsonInput();
+           $ids = $data['ids'] ?? [];
+           
+           if (empty($ids) || !is_array($ids)) {
+               return $this->handleAjaxError('Не указаны ID для удаления', 400);
+           }
+           
+           // Начинаем транзакцию
+           $this->db->getConnection()->beginTransaction();
+           
+           try {
+               // Подготавливаем плейсхолдеры для запроса
+               $placeholders = implode(',', array_fill(0, count($ids), '?'));
+               
+               // Удаляем аккаунты
+               $result = $this->db->execute(
+                   "DELETE FROM accounts WHERE id IN ($placeholders)",
+                   $ids
+               );
+               
+               // Фиксируем транзакцию
+               $this->db->getConnection()->commit();
+               
+               // Проверяем результат
+               if ($result !== false) {
+                   return $this->handleSuccess('Выбранные аккаунты успешно удалены', '/accounts');
+               } else {
+                   $this->db->getConnection()->rollBack();
+                   return $this->handleAjaxError('Ошибка при удалении аккаунтов');
+               }
+           } catch (Exception $e) {
+               $this->db->getConnection()->rollBack();
+               throw $e;
+           }
+       } catch (Exception $e) {
+           Logger::error('Ошибка при массовом удалении аккаунтов: ' . $e->getMessage(), 'accounts');
+           return $this->handleAjaxError('Ошибка при массовом удалении аккаунтов: ' . $e->getMessage(), 500);
+       }
+   }
+   
+   /**
     * Изменение статуса аккаунта (активен/неактивен)
     * 
     * @param int $id ID аккаунта
