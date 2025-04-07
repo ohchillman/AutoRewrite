@@ -132,10 +132,101 @@ class RewriteController extends BaseController {
     }
 
     /**
-     * Удаление версии реврайтнутого контента
+     * Удаление оригинального контента
      * 
-     * @param int $id ID реврайтнутого контента
+     * @param int $id ID оригинального контента
      */
+    public function deleteOriginal($id = null) {
+        // Проверяем ID
+        if (empty($id)) {
+            return $this->handleAjaxError('ID контента не указан', 400);
+        }
+        
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if (!$this->isMethod('POST')) {
+                return $this->handleAjaxError('Метод не поддерживается', 405);
+            }
+            
+            // Получаем данные о контенте
+            $content = $this->db->fetchOne("SELECT * FROM original_content WHERE id = ?", [$id]);
+            
+            if (!$content) {
+                return $this->handleAjaxError('Контент не найден', 404);
+            }
+            
+            // Начинаем транзакцию
+            $this->db->getConnection()->beginTransaction();
+            
+            try {
+                // Удаляем оригинальный контент
+                $result = $this->db->delete('original_content', 'id = ?', [$id]);
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Проверяем результат
+                if ($result) {
+                    return $this->handleSuccess('Контент успешно удален', '/rewrite');
+                } else {
+                    $this->db->getConnection()->rollBack();
+                    return $this->handleAjaxError('Ошибка при удалении контента');
+                }
+            } catch (Exception $e) {
+                $this->db->getConnection()->rollBack();
+                throw $e;
+            }
+        } catch (Exception $e) {
+            Logger::error('Ошибка при удалении контента: ' . $e->getMessage(), 'rewrite');
+            return $this->handleAjaxError('Ошибка при удалении контента: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Массовое удаление оригинального контента
+     */
+    public function bulkDeleteOriginal() {
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if (!$this->isMethod('POST')) {
+                return $this->handleAjaxError('Метод не поддерживается', 405);
+            }
+            
+            // Получаем данные из JSON тела запроса
+            $data = $this->getJsonInput();
+            $ids = $data['ids'] ?? [];
+            
+            if (empty($ids) || !is_array($ids)) {
+                return $this->handleAjaxError('Не указаны ID для удаления', 400);
+            }
+            
+            // Начинаем транзакцию
+            $this->db->getConnection()->beginTransaction();
+            
+            try {
+                // Подготавливаем плейсхолдеры для запроса
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                
+                // Удаляем оригинальный контент
+                $result = $this->db->execute(
+                    "DELETE FROM original_content WHERE id IN ($placeholders)",
+                    $ids
+                );
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Возвращаем успешный результат
+                return $this->handleSuccess('Выбранные элементы успешно удалены', '/rewrite');
+            } catch (Exception $e) {
+                $this->db->getConnection()->rollBack();
+                throw $e;
+            }
+        } catch (Exception $e) {
+            Logger::error('Ошибка при массовом удалении контента: ' . $e->getMessage(), 'rewrite');
+            return $this->handleAjaxError('Ошибка при массовом удалении контента: ' . $e->getMessage(), 500);
+        }
+    }
     public function deleteVersion($id = null) {
         // Проверяем ID
         if (empty($id)) {
@@ -226,10 +317,87 @@ class RewriteController extends BaseController {
     }
     
     /**
-     * Метод для обработки реврайта контента
-     * 
-     * @param int $id ID оригинального контента
+     * Массовое удаление реврайтнутого контента
      */
+    public function bulkDelete() {
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if (!$this->isMethod('POST')) {
+                return $this->handleAjaxError('Метод не поддерживается', 405);
+            }
+            
+            // Получаем данные из JSON тела запроса
+            $data = $this->getJsonInput();
+            $ids = $data['ids'] ?? [];
+            
+            if (empty($ids) || !is_array($ids)) {
+                return $this->handleAjaxError('Не указаны ID для удаления', 400);
+            }
+            
+            // Начинаем транзакцию
+            $this->db->getConnection()->beginTransaction();
+            
+            try {
+                // Подготавливаем плейсхолдеры для запроса
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                
+                // Получаем информацию о реврайтнутом контенте
+                $rewrittenContent = $this->db->fetchAll(
+                    "SELECT id, original_id FROM rewritten_content WHERE id IN ($placeholders)",
+                    $ids
+                );
+                
+                if (empty($rewrittenContent)) {
+                    $this->db->getConnection()->rollBack();
+                    return $this->handleAjaxError('Контент не найден', 404);
+                }
+                
+                // Собираем ID оригинального контента и реврайтнутого контента
+                $rewrittenIds = array_column($rewrittenContent, 'id');
+                $originalIds = array_column($rewrittenContent, 'original_id');
+                
+                // Подготавливаем плейсхолдеры для запросов
+                $rewrittenPlaceholders = implode(',', array_fill(0, count($rewrittenIds), '?'));
+                $originalPlaceholders = implode(',', array_fill(0, count($originalIds), '?'));
+                
+                // Удаляем все версии для выбранного реврайтнутого контента
+                $this->db->execute(
+                    "DELETE FROM rewrite_versions WHERE rewritten_id IN ($rewrittenPlaceholders)",
+                    $rewrittenIds
+                );
+                
+                // Удаляем все посты для выбранного реврайтнутого контента
+                $this->db->execute(
+                    "DELETE FROM posts WHERE rewritten_id IN ($rewrittenPlaceholders)",
+                    $rewrittenIds
+                );
+                
+                // Удаляем реврайтнутый контент
+                $this->db->execute(
+                    "DELETE FROM rewritten_content WHERE id IN ($rewrittenPlaceholders)",
+                    $rewrittenIds
+                );
+                
+                // Сбрасываем флаг is_processed у оригинального контента
+                $this->db->execute(
+                    "UPDATE original_content SET is_processed = 0 WHERE id IN ($originalPlaceholders)",
+                    $originalIds
+                );
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Возвращаем успешный результат
+                return $this->handleSuccess('Выбранные элементы успешно удалены', '/rewrite');
+            } catch (Exception $e) {
+                $this->db->getConnection()->rollBack();
+                throw $e;
+            }
+        } catch (Exception $e) {
+            Logger::error('Ошибка при массовом удалении реврайтнутого контента: ' . $e->getMessage(), 'rewrite');
+            return $this->handleAjaxError('Ошибка при массовом удалении контента: ' . $e->getMessage(), 500);
+        }
+    }
     public function process($id = null) {
         try {
             // Получаем ID из параметров или из JSON тела запроса

@@ -397,26 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Функция для отображения уведомлений
-    function showNotification(message, type) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.role = 'alert';
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        
-        // Добавляем уведомление в начало содержимого
-        const container = document.querySelector('.container') || document.querySelector('main');
-        container.prepend(alertDiv);
-        
-        // Автоматически скрываем уведомление через 5 секунд
-        setTimeout(() => {
-            const bsAlert = new bootstrap.Alert(alertDiv);
-            bsAlert.close();
-        }, 5000);
-    }
+    // Используем глобальную функцию showNotification из main.js
     
     // Функции для отображения/скрытия индикатора загрузки
     function showLoading() {
