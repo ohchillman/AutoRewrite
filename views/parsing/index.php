@@ -125,8 +125,13 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Список источников</h5>
+                <div class="bulk-actions-sources" style="display: none;">
+                    <button type="button" class="btn btn-danger btn-sm delete-selected-sources">
+                        <i class="fas fa-trash"></i> Удалить выбранное
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($sources)): ?>
@@ -138,6 +143,11 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th width="40">
+                                    <div class="form-check">
+                                        <input class="form-check-input select-all-sources" type="checkbox" value="" id="selectAllSources">
+                                    </div>
+                                </th>
                                 <th>Название</th>
                                 <th>URL</th>
                                 <th>Тип</th>
@@ -150,7 +160,12 @@
                         </thead>
                         <tbody>
                             <?php foreach ($sources as $source): ?>
-                            <tr>
+                            <tr class="source-row" data-id="<?php echo $source['id']; ?>">
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input source-checkbox" type="checkbox" value="<?php echo $source['id']; ?>">
+                                    </div>
+                                </td>
                                 <td><?php echo htmlspecialchars($source['name']); ?></td>
                                 <td>
                                     <a href="<?php echo htmlspecialchars($source['url']); ?>" target="_blank">
@@ -265,8 +280,163 @@
 <?php endif; ?>
 
 <script>
-// Показывать/скрывать поля в зависимости от типа источника
 document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация модального окна
+    const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    
+    // Обработка кнопок удаления
+    const deleteBtns = document.querySelectorAll('.delete-btn');
+    deleteBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const deleteUrl = this.getAttribute('data-delete-url');
+            const itemName = this.getAttribute('data-item-name');
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = itemName;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на удаление
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при удалении: ' + error.message, 'danger');
+                    console.error('Delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    });
+    
+    // Обработка выбора всех источников
+    const selectAllSources = document.getElementById('selectAllSources');
+    const sourceCheckboxes = document.querySelectorAll('.source-checkbox');
+    const bulkActionsSources = document.querySelector('.bulk-actions-sources');
+    
+    if (selectAllSources) {
+        selectAllSources.addEventListener('change', function() {
+            const isChecked = this.checked;
+            sourceCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            // Показываем/скрываем кнопки массовых действий
+            if (isChecked && sourceCheckboxes.length > 0) {
+                bulkActionsSources.style.display = 'block';
+            } else {
+                bulkActionsSources.style.display = 'none';
+            }
+        });
+    }
+    
+    // Обработка выбора отдельных источников
+    sourceCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Проверяем, есть ли выбранные элементы
+            const hasChecked = Array.from(sourceCheckboxes).some(cb => cb.checked);
+            
+            // Показываем/скрываем кнопки массовых действий
+            bulkActionsSources.style.display = hasChecked ? 'block' : 'none';
+            
+            // Обновляем состояние "выбрать все"
+            if (!hasChecked) {
+                selectAllSources.checked = false;
+            } else if (Array.from(sourceCheckboxes).every(cb => cb.checked)) {
+                selectAllSources.checked = true;
+            }
+        });
+    });
+    
+    // Обработка кнопки массового удаления источников
+    const deleteSelectedSourcesBtn = document.querySelector('.delete-selected-sources');
+    if (deleteSelectedSourcesBtn) {
+        deleteSelectedSourcesBtn.addEventListener('click', function() {
+            // Собираем ID выбранных элементов
+            const selectedIds = Array.from(sourceCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                showNotification('Не выбрано ни одного элемента для удаления', 'warning');
+                return;
+            }
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = `выбранные источники (${selectedIds.length} шт.)`;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на массовое удаление
+                fetch('/parsing/bulkDelete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при массовом удалении: ' + error.message, 'danger');
+                    console.error('Bulk delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    }
+    
+    // Показывать/скрывать поля в зависимости от типа источника
     const sourceTypeSelect = document.getElementById('source_type');
     if (sourceTypeSelect) {
         sourceTypeSelect.addEventListener('change', function() {

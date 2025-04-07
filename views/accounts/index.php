@@ -165,8 +165,13 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Список аккаунтов</h5>
+                <div class="bulk-actions-accounts" style="display: none;">
+                    <button type="button" class="btn btn-danger btn-sm delete-selected-accounts">
+                        <i class="fas fa-trash"></i> Удалить выбранное
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($accounts)): ?>
@@ -174,64 +179,64 @@
                     Аккаунты не найдены. Добавьте новый аккаунт с помощью формы выше.
                 </div>
                 <?php else: ?>
-                <div class="row">
-                    <?php foreach ($accounts as $account): ?>
-                    <div class="col-md-4 mb-4">
-                        <div class="card account-card h-100">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0"><?php echo htmlspecialchars($account['name']); ?></h6>
-                                <span class="badge <?php echo $account['is_active'] ? 'bg-success' : 'bg-danger'; ?>">
-                                    <?php echo $account['is_active'] ? 'Активен' : 'Неактивен'; ?>
-                                </span>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <strong>Тип:</strong> 
-                                    <?php echo ucfirst(htmlspecialchars($account['account_type_name'])); ?>
-                                </div>
-                                
-                                <?php if (!empty($account['username'])): ?>
-                                <div class="mb-3">
-                                    <strong>Логин:</strong> 
-                                    <?php echo htmlspecialchars($account['username']); ?>
-                                </div>
-                                <?php endif; ?>
-                                
-                                <?php if (!empty($account['proxy_ip'])): ?>
-                                <div class="mb-3">
-                                    <strong>Прокси:</strong> 
-                                    <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
-                                </div>
-                                <?php endif; ?>
-                                
-                                <div class="mb-3">
-                                    <strong>Последнее использование:</strong> 
-                                    <?php echo $account['last_used'] ? date('d.m.Y H:i', strtotime($account['last_used'])) : 'Не использовался'; ?>
-                                </div>
-                            </div>
-                            <div class="card-footer">
-                                <div class="btn-group w-100" role="group">
-                                    <a href="/accounts/edit/<?php echo $account['id']; ?>" class="btn btn-sm btn-info">
-                                        <i class="fas fa-edit"></i> Редактировать
-                                    </a>
-                                    <button type="button" class="btn btn-sm <?php echo $account['is_active'] ? 'btn-warning' : 'btn-success'; ?>" 
-                                            onclick="window.location.href='/accounts/toggle/<?php echo $account['id']; ?>'">
-                                        <?php if ($account['is_active']): ?>
-                                        <i class="fas fa-times"></i> Деактивировать
-                                        <?php else: ?>
-                                        <i class="fas fa-check"></i> Активировать
-                                        <?php endif; ?>
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-danger delete-btn" 
-                                            data-delete-url="/accounts/delete/<?php echo $account['id']; ?>"
-                                            data-item-name="аккаунт <?php echo htmlspecialchars($account['name']); ?>">
-                                        <i class="fas fa-trash"></i> Удалить
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
+                <div class="table-responsive mb-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th width="40">
+                                    <div class="form-check">
+                                        <input class="form-check-input select-all-accounts" type="checkbox" value="" id="selectAllAccounts">
+                                    </div>
+                                </th>
+                                <th>Название</th>
+                                <th>Тип</th>
+                                <th>Логин</th>
+                                <th>Прокси</th>
+                                <th>Статус</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($accounts as $account): ?>
+                            <tr class="account-row" data-id="<?php echo $account['id']; ?>">
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input account-checkbox" type="checkbox" value="<?php echo $account['id']; ?>">
+                                    </div>
+                                </td>
+                                <td><?php echo htmlspecialchars($account['name']); ?></td>
+                                <td><?php echo htmlspecialchars($account['account_type_name']); ?></td>
+                                <td><?php echo htmlspecialchars($account['username'] ?: '-'); ?></td>
+                                <td><?php echo !empty($account['proxy_ip']) ? htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']) : '-'; ?></td>
+                                <td>
+                                    <span class="badge <?php echo $account['is_active'] ? 'bg-success' : 'bg-danger'; ?>">
+                                        <?php echo $account['is_active'] ? 'Активен' : 'Неактивен'; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="/accounts/edit/<?php echo $account['id']; ?>" class="btn btn-sm btn-info">
+                                            <i class="fas fa-edit"></i> Редактировать
+                                        </a>
+                                        <button type="button" class="btn btn-sm <?php echo $account['is_active'] ? 'btn-warning' : 'btn-success'; ?>" 
+                                                onclick="window.location.href='/accounts/toggle/<?php echo $account['id']; ?>'">
+                                            <?php if ($account['is_active']): ?>
+                                            <i class="fas fa-times"></i> Деактивировать
+                                            <?php else: ?>
+                                            <i class="fas fa-check"></i> Активировать
+                                            <?php endif; ?>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger delete-btn" 
+                                                data-delete-url="/accounts/delete/<?php echo $account['id']; ?>"
+                                                data-item-name="аккаунт <?php echo htmlspecialchars($account['name']); ?>">
+                                            <i class="fas fa-trash"></i> Удалить
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
                 <?php endif; ?>
             </div>
@@ -276,6 +281,162 @@
 <script>
 // Показывать/скрывать поля в зависимости от типа аккаунта
 document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация модального окна
+    const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    
+    // Обработка кнопок удаления
+    const deleteBtns = document.querySelectorAll('.delete-btn');
+    deleteBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const deleteUrl = this.getAttribute('data-delete-url');
+            const itemName = this.getAttribute('data-item-name');
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = itemName;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на удаление
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при удалении: ' + error.message, 'danger');
+                    console.error('Delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    });
+    
+    // Обработка выбора всех аккаунтов
+    const selectAllAccounts = document.getElementById('selectAllAccounts');
+    const accountCheckboxes = document.querySelectorAll('.account-checkbox');
+    const bulkActionsAccounts = document.querySelector('.bulk-actions-accounts');
+    
+    if (selectAllAccounts) {
+        selectAllAccounts.addEventListener('change', function() {
+            const isChecked = this.checked;
+            accountCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            // Показываем/скрываем кнопки массовых действий
+            if (isChecked && accountCheckboxes.length > 0) {
+                bulkActionsAccounts.style.display = 'block';
+            } else {
+                bulkActionsAccounts.style.display = 'none';
+            }
+        });
+    }
+    
+    // Обработка выбора отдельных аккаунтов
+    accountCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Проверяем, есть ли выбранные элементы
+            const hasChecked = Array.from(accountCheckboxes).some(cb => cb.checked);
+            
+            // Показываем/скрываем кнопки массовых действий
+            bulkActionsAccounts.style.display = hasChecked ? 'block' : 'none';
+            
+            // Обновляем состояние "выбрать все"
+            if (!hasChecked) {
+                selectAllAccounts.checked = false;
+            } else if (Array.from(accountCheckboxes).every(cb => cb.checked)) {
+                selectAllAccounts.checked = true;
+            }
+        });
+    });
+    
+    // Обработка кнопки массового удаления аккаунтов
+    const deleteSelectedAccountsBtn = document.querySelector('.delete-selected-accounts');
+    if (deleteSelectedAccountsBtn) {
+        deleteSelectedAccountsBtn.addEventListener('click', function() {
+            // Собираем ID выбранных элементов
+            const selectedIds = Array.from(accountCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                showNotification('Не выбрано ни одного элемента для удаления', 'warning');
+                return;
+            }
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = `выбранные аккаунты (${selectedIds.length} шт.)`;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на массовое удаление
+                fetch('/accounts/bulkDelete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showNotification('Произошла ошибка при массовом удалении: ' + error.message, 'danger');
+                    console.error('Bulk delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    }
+    
+    // Показывать/скрывать поля в зависимости от типа аккаунта
     const accountTypeSelect = document.getElementById('account_type_id');
     if (accountTypeSelect) {
         accountTypeSelect.addEventListener('change', function() {

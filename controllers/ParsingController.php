@@ -120,6 +120,58 @@ class ParsingController extends BaseController {
     }
     
     /**
+     * Массовое удаление источников парсинга
+     */
+    public function bulkDelete() {
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if (!$this->isMethod('POST')) {
+                return $this->handleAjaxError('Метод не поддерживается', 405);
+            }
+            
+            // Получаем данные из JSON тела запроса
+            $data = $this->getJsonInput();
+            $ids = $data['ids'] ?? [];
+            
+            if (empty($ids) || !is_array($ids)) {
+                return $this->handleAjaxError('Не указаны ID для удаления', 400);
+            }
+            
+            // Начинаем транзакцию
+            $this->db->getConnection()->beginTransaction();
+            
+            try {
+                // Подготавливаем плейсхолдеры для запроса
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                
+                // Удаляем источники
+                $result = $this->db->execute(
+                    "DELETE FROM parsing_sources WHERE id IN ($placeholders)",
+                    $ids
+                );
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Проверяем результат
+                if ($result !== false) {
+                    Logger::info("Bulk deleted parsing sources: " . implode(', ', $ids), 'parsing');
+                    return $this->handleSuccess('Выбранные источники успешно удалены', '/parsing');
+                } else {
+                    $this->db->getConnection()->rollBack();
+                    return $this->handleAjaxError('Ошибка при удалении источников');
+                }
+            } catch (Exception $e) {
+                $this->db->getConnection()->rollBack();
+                throw $e;
+            }
+        } catch (Exception $e) {
+            Logger::error('Ошибка при массовом удалении источников: ' . $e->getMessage(), 'parsing');
+            return $this->handleAjaxError('Ошибка при массовом удалении источников: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
      * Изменение статуса источника (активен/неактивен)
      * 
      * @param int $id ID источника

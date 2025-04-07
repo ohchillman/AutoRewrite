@@ -383,6 +383,68 @@ class ProxiesController extends BaseController {
     }
     
     /**
+     * Массовое удаление прокси
+     */
+    public function bulkDelete() {
+        Logger::info("Начало процесса массового удаления прокси", 'proxies');
+        
+        try {
+            // Проверяем, что запрос отправлен методом POST
+            if (!$this->isMethod('POST')) {
+                Logger::warning("Попытка массового удаления прокси не через POST метод", 'proxies');
+                return $this->handleAjaxError('Метод не поддерживается', 405);
+            }
+            
+            // Получаем данные из JSON тела запроса
+            $data = $this->getJsonInput();
+            $ids = $data['ids'] ?? [];
+            
+            if (empty($ids) || !is_array($ids)) {
+                Logger::warning("Не указаны ID для массового удаления прокси", 'proxies');
+                return $this->handleAjaxError('Не указаны ID для удаления', 400);
+            }
+            
+            // Начинаем транзакцию
+            $this->db->getConnection()->beginTransaction();
+            
+            try {
+                // Подготавливаем плейсхолдеры для запроса
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                
+                // Удаляем прокси
+                Logger::debug("Попытка массового удаления прокси: " . implode(', ', $ids), 'proxies');
+                $result = $this->db->execute(
+                    "DELETE FROM proxies WHERE id IN ($placeholders)",
+                    $ids
+                );
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Проверяем результат
+                if ($result !== false) {
+                    $successMsg = 'Выбранные прокси успешно удалены';
+                    Logger::info($successMsg . ": " . implode(', ', $ids), 'proxies');
+                    return $this->handleSuccess($successMsg, '/proxies');
+                } else {
+                    $this->db->getConnection()->rollBack();
+                    $errorMsg = 'Ошибка при удалении прокси';
+                    Logger::error($errorMsg, 'proxies');
+                    return $this->handleAjaxError($errorMsg);
+                }
+            } catch (Exception $e) {
+                $this->db->getConnection()->rollBack();
+                throw $e;
+            }
+        } catch (Exception $e) {
+            // Обработка исключений
+            $errorMsg = 'Ошибка при массовом удалении прокси: ' . $e->getMessage();
+            Logger::error($errorMsg . "\n" . $e->getTraceAsString(), 'proxies');
+            return $this->handleAjaxError($errorMsg, 500);
+        }
+    }
+    
+    /**
      * Изменение статуса активности прокси
      * 
      * @param int $id ID прокси
@@ -554,89 +616,89 @@ class ProxiesController extends BaseController {
     }
     
     /**
- * Проверка соединения через прокси
- * 
- * @param array $proxy Массив с данными прокси
- * @return array Результат проверки [success => bool, details => string]
- */
-private function checkProxyConnection($proxy) {
-    Logger::debug("Проверка соединения через прокси: {$proxy['ip']}:{$proxy['port']} ({$proxy['protocol']})", 'proxies');
-    
-    // Формируем строку прокси для cURL
-    $proxyString = "{$proxy['protocol']}://{$proxy['ip']}:{$proxy['port']}";
-    if (!empty($proxy['username']) && !empty($proxy['password'])) {
-        $proxyAuth = "{$proxy['username']}:{$proxy['password']}";
-    } else {
-        $proxyAuth = null;
+     * Проверка соединения через прокси
+     * 
+     * @param array $proxy Массив с данными прокси
+     * @return array Результат проверки [success => bool, details => string]
+     */
+    private function checkProxyConnection($proxy) {
+        Logger::debug("Проверка соединения через прокси: {$proxy['ip']}:{$proxy['port']} ({$proxy['protocol']})", 'proxies');
+        
+        // Формируем строку прокси для cURL
+        $proxyString = "{$proxy['protocol']}://{$proxy['ip']}:{$proxy['port']}";
+        if (!empty($proxy['username']) && !empty($proxy['password'])) {
+            $proxyAuth = "{$proxy['username']}:{$proxy['password']}";
+        } else {
+            $proxyAuth = null;
+        }
+        
+        // URL для проверки - сервис, который возвращает IP-адрес
+        $checkUrl = 'https://api.ipify.org';
+        
+        try {
+            // Инициализируем cURL
+            $ch = curl_init();
+            
+            // Настраиваем cURL
+            curl_setopt($ch, CURLOPT_URL, $checkUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Таймаут 10 секунд
+            curl_setopt($ch, CURLOPT_PROXY, $proxyString);
+            
+            // Если есть аутентификация, добавляем ее
+            if ($proxyAuth) {
+                curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxyAuth);
+            }
+            
+            // Опция для избегания проблем с SSL
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            
+            // Выполняем запрос
+            $response = curl_exec($ch);
+            $error = curl_error($ch);
+            $info = curl_getinfo($ch);
+            
+            // Закрываем соединение
+            curl_close($ch);
+            
+            // Проверяем результат
+            if ($error) {
+                Logger::debug("Ошибка cURL при проверке прокси: {$error}", 'proxies');
+                return [
+                    'success' => false,
+                    'details' => "Ошибка соединения: {$error}"
+                ];
+            }
+            
+            if ($info['http_code'] != 200) {
+                Logger::debug("Неуспешный HTTP-код при проверке прокси: {$info['http_code']}", 'proxies');
+                return [
+                    'success' => false,
+                    'details' => "HTTP-код: {$info['http_code']}"
+                ];
+            }
+            
+            // Проверяем полученный IP (должен отличаться от локального)
+            if (!$response || !filter_var($response, FILTER_VALIDATE_IP)) {
+                Logger::debug("Некорректный IP в ответе: {$response}", 'proxies');
+                return [
+                    'success' => false,
+                    'details' => "Некорректный ответ от сервера"
+                ];
+            }
+            
+            Logger::debug("Прокси работает, внешний IP: {$response}", 'proxies');
+            return [
+                'success' => true,
+                'details' => $response
+            ];
+        } catch (Exception $e) {
+            Logger::error("Исключение при проверке прокси: " . $e->getMessage(), 'proxies');
+            return [
+                'success' => false,
+                'details' => "Ошибка: " . $e->getMessage()
+            ];
+        }
     }
-    
-    // URL для проверки - сервис, который возвращает IP-адрес
-    $checkUrl = 'https://api.ipify.org';
-    
-    try {
-        // Инициализируем cURL
-        $ch = curl_init();
-        
-        // Настраиваем cURL
-        curl_setopt($ch, CURLOPT_URL, $checkUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Таймаут 10 секунд
-        curl_setopt($ch, CURLOPT_PROXY, $proxyString);
-        
-        // Если есть аутентификация, добавляем ее
-        if ($proxyAuth) {
-            curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxyAuth);
-        }
-        
-        // Опция для избегания проблем с SSL
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        
-        // Выполняем запрос
-        $response = curl_exec($ch);
-        $error = curl_error($ch);
-        $info = curl_getinfo($ch);
-        
-        // Закрываем соединение
-        curl_close($ch);
-        
-        // Проверяем результат
-        if ($error) {
-            Logger::debug("Ошибка cURL при проверке прокси: {$error}", 'proxies');
-            return [
-                'success' => false,
-                'details' => "Ошибка соединения: {$error}"
-            ];
-        }
-        
-        if ($info['http_code'] != 200) {
-            Logger::debug("Неуспешный HTTP-код при проверке прокси: {$info['http_code']}", 'proxies');
-            return [
-                'success' => false,
-                'details' => "HTTP-код: {$info['http_code']}"
-            ];
-        }
-        
-        // Проверяем полученный IP (должен отличаться от локального)
-        if (!$response || !filter_var($response, FILTER_VALIDATE_IP)) {
-            Logger::debug("Некорректный IP в ответе: {$response}", 'proxies');
-            return [
-                'success' => false,
-                'details' => "Некорректный ответ от сервера"
-            ];
-        }
-        
-        Logger::debug("Прокси работает, внешний IP: {$response}", 'proxies');
-        return [
-            'success' => true,
-            'details' => $response
-        ];
-    } catch (Exception $e) {
-        Logger::error("Исключение при проверке прокси: " . $e->getMessage(), 'proxies');
-        return [
-            'success' => false,
-            'details' => "Ошибка: " . $e->getMessage()
-        ];
-    }
-}
 }

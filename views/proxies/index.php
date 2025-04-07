@@ -79,8 +79,13 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Список прокси</h5>
+                <div class="bulk-actions-proxies" style="display: none;">
+                    <button type="button" class="btn btn-danger btn-sm delete-selected-proxies">
+                        <i class="fas fa-trash"></i> Удалить выбранное
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($proxies)): ?>
@@ -92,6 +97,11 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th width="40">
+                                <div class="form-check">
+                                    <input class="form-check-input select-all-proxies" type="checkbox" value="" id="selectAllProxies">
+                                </div>
+                            </th>
                             <th>Название</th>
                             <th>IP:Порт</th>
                             <th>Протокол</th>
@@ -108,7 +118,12 @@
                             if ($proxy['status'] === 'working') echo 'proxy-working';
                             elseif ($proxy['status'] === 'failed') echo 'proxy-failed';
                             else echo 'proxy-unchecked';
-                        ?>">
+                        ?>" data-id="<?php echo $proxy['id']; ?>">
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input proxy-checkbox" type="checkbox" value="<?php echo $proxy['id']; ?>">
+                                </div>
+                            </td>
                             <td><?php echo htmlspecialchars($proxy['name']); ?></td>
                             <td><?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?></td>
                             <td><?php echo htmlspecialchars(strtoupper($proxy['protocol'])); ?></td>
@@ -226,8 +241,163 @@
 <?php endif; ?>
 
 <script>
-// Обработка кнопки смены IP
 document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация модального окна
+    const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    
+    // Обработка кнопок удаления
+    const deleteBtns = document.querySelectorAll('.delete-btn');
+    deleteBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const deleteUrl = this.getAttribute('data-delete-url');
+            const itemName = this.getAttribute('data-item-name');
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = itemName;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на удаление
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showToast(data.success ? 'success' : 'error', data.message);
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showToast('error', 'Произошла ошибка при удалении: ' + error.message);
+                    console.error('Delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    });
+    
+    // Обработка выбора всех прокси
+    const selectAllProxies = document.getElementById('selectAllProxies');
+    const proxyCheckboxes = document.querySelectorAll('.proxy-checkbox');
+    const bulkActionsProxies = document.querySelector('.bulk-actions-proxies');
+    
+    if (selectAllProxies) {
+        selectAllProxies.addEventListener('change', function() {
+            const isChecked = this.checked;
+            proxyCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            
+            // Показываем/скрываем кнопки массовых действий
+            if (isChecked && proxyCheckboxes.length > 0) {
+                bulkActionsProxies.style.display = 'block';
+            } else {
+                bulkActionsProxies.style.display = 'none';
+            }
+        });
+    }
+    
+    // Обработка выбора отдельных прокси
+    proxyCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Проверяем, есть ли выбранные элементы
+            const hasChecked = Array.from(proxyCheckboxes).some(cb => cb.checked);
+            
+            // Показываем/скрываем кнопки массовых действий
+            bulkActionsProxies.style.display = hasChecked ? 'block' : 'none';
+            
+            // Обновляем состояние "выбрать все"
+            if (!hasChecked) {
+                selectAllProxies.checked = false;
+            } else if (Array.from(proxyCheckboxes).every(cb => cb.checked)) {
+                selectAllProxies.checked = true;
+            }
+        });
+    });
+    
+    // Обработка кнопки массового удаления прокси
+    const deleteSelectedProxiesBtn = document.querySelector('.delete-selected-proxies');
+    if (deleteSelectedProxiesBtn) {
+        deleteSelectedProxiesBtn.addEventListener('click', function() {
+            // Собираем ID выбранных элементов
+            const selectedIds = Array.from(proxyCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                showToast('warning', 'Не выбрано ни одного элемента для удаления');
+                return;
+            }
+            
+            // Настраиваем модальное окно
+            document.getElementById('deleteItemName').textContent = `выбранные прокси (${selectedIds.length} шт.)`;
+            
+            // Настраиваем кнопку подтверждения
+            document.getElementById('confirmDeleteBtn').onclick = function() {
+                // Скрываем модальное окно
+                deleteConfirmModal.hide();
+                
+                // Отправляем запрос на массовое удаление
+                fetch('/proxies/bulkDelete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Показываем сообщение
+                    showToast(data.success ? 'success' : 'error', data.message);
+                    
+                    // Если успешно, обновляем страницу или перенаправляем
+                    if (data.success) {
+                        if (data.redirect) {
+                            setTimeout(function() {
+                                window.location.href = data.redirect;
+                            }, 1000);
+                        } else {
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Показываем сообщение об ошибке
+                    showToast('error', 'Произошла ошибка при массовом удалении: ' + error.message);
+                    console.error('Bulk delete error:', error);
+                });
+            };
+            
+            // Показываем модальное окно
+            deleteConfirmModal.show();
+        });
+    }
+    
+    // Обработка кнопки смены IP
     const changeIpButtons = document.querySelectorAll('.change-ip-btn');
     
     changeIpButtons.forEach(function(button) {
@@ -272,5 +442,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+    
+    // Примечание: Обработка кнопок проверки прокси перенесена в main.js
+    // для избежания дублирования обработчиков событий
 });
 </script>
