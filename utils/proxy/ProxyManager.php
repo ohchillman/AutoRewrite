@@ -220,8 +220,8 @@ class ProxyManager {
             $status = $isWorking ? 'working' : 'failed';
             $result = $this->db->update('proxies', [
                 'status' => $status,
-                'last_check' => date('Y-m-d H:i:s'),
-                'external_ip' => $isWorking ? $details : null
+                'last_check' => date('Y-m-d H:i:s')
+                // Удалено поле external_ip, которого нет в базе данных
             ], 'id = ?', [$proxyId]);
             
             $this->logger->debug("Статус прокси ID $proxyId обновлен: $status");
