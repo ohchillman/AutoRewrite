@@ -512,6 +512,7 @@ class RewriteController extends BaseController {
             try {
                 // Определяем ID записи реврайтнутого контента
                 $rewrittenId = null;
+                $versionNumber = 1; // По умолчанию первая версия
                 
                 // Проверяем, существует ли уже запись в rewritten_content для этого оригинала
                 $existingRewrite = $this->db->fetchOne("
@@ -519,10 +520,18 @@ class RewriteController extends BaseController {
                     WHERE original_id = ?
                 ", [$originalContent['id']]);
                 
-                // Если запись существует, используем её ID, иначе создаем новую
                 if ($existingRewrite) {
                     Logger::debug("Найдена существующая запись в rewritten_content, ID: " . $existingRewrite['id'], 'rewrite_debug');
                     $rewrittenId = $existingRewrite['id'];
+                    
+                    // Получаем максимальный номер версии для существующего контента
+                    $maxVersionNumber = $this->db->fetchColumn("
+                        SELECT MAX(version_number) FROM rewrite_versions WHERE rewritten_id = ?
+                    ", [$rewrittenId]);
+                    
+                    // Увеличиваем номер версии
+                    $versionNumber = $maxVersionNumber ? ($maxVersionNumber + 1) : 1;
+                    Logger::debug("Для существующего реврайта будет создана версия: " . $versionNumber, 'rewrite_debug');
                 } else {
                     // Создаем новую запись в таблице rewritten_content
                     Logger::debug("Создание новой записи в rewritten_content", 'rewrite_debug');
@@ -532,7 +541,8 @@ class RewriteController extends BaseController {
                         'content' => $rewrittenContent,
                         'rewrite_date' => date('Y-m-d H:i:s'),
                         'status' => 'rewritten',
-                        'is_current_version' => true
+                        'is_current_version' => true,
+                        'version_number' => $versionNumber // Устанавливаем начальную версию
                     ]);
                     
                     Logger::debug("Создана новая запись в rewritten_content, ID: " . $rewrittenId, 'rewrite_debug');
@@ -542,25 +552,19 @@ class RewriteController extends BaseController {
                     throw new Exception("Не удалось создать/найти запись в rewritten_content");
                 }
                 
-                // Получаем максимальный номер версии для этого контента
-                $maxVersionNumber = $this->db->fetchColumn("
-                    SELECT MAX(version_number) FROM rewrite_versions WHERE rewritten_id = ?
-                ", [$rewrittenId]);
+                // Если запись существует, обновляем ее
+                if ($existingRewrite) {
+                    // Обновляем основную запись с новой информацией
+                    Logger::debug("Обновление записи в rewritten_content для версии: " . $versionNumber, 'rewrite_debug');
+                    $this->db->update('rewritten_content', [
+                        'title' => $rewrittenTitle,
+                        'content' => $rewrittenContent,
+                        'rewrite_date' => date('Y-m-d H:i:s'),
+                        'version_number' => $versionNumber
+                    ], 'id = ?', [$rewrittenId]);
+                }
                 
-                // Увеличиваем номер версии
-                $versionNumber = $maxVersionNumber ? ($maxVersionNumber + 1) : 1;
-                Logger::debug("Новый номер версии: " . $versionNumber, 'rewrite_debug');
-                
-                // Обновляем основную запись с новой информацией
-                Logger::debug("Обновление записи в rewritten_content", 'rewrite_debug');
-                $this->db->update('rewritten_content', [
-                    'title' => $rewrittenTitle,
-                    'content' => $rewrittenContent,
-                    'rewrite_date' => date('Y-m-d H:i:s'),
-                    'version_number' => $versionNumber
-                ], 'id = ?', [$rewrittenId]);
-                
-                // Проверяем, нет ли уже версии с таким номером
+                // Проверим, не существует ли уже версия с таким номером (для безопасности)
                 $existingVersion = $this->db->fetchOne("
                     SELECT * FROM rewrite_versions 
                     WHERE rewritten_id = ? AND version_number = ?
@@ -571,7 +575,7 @@ class RewriteController extends BaseController {
                     $versionNumber++;
                 }
                 
-                // Создаем новую запись версии в rewrite_versions
+                // Создаем запись версии в rewrite_versions
                 Logger::debug("Создание новой записи в rewrite_versions с номером {$versionNumber}", 'rewrite_debug');
                 $versionId = $this->db->insert('rewrite_versions', [
                     'rewritten_id' => $rewrittenId,
