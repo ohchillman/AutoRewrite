@@ -443,67 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Обработка кнопки проверки прокси
-    const checkProxyButtons = document.querySelectorAll('.check-proxy-btn');
-    
-    checkProxyButtons.forEach(function(button) {
-        button.addEventListener('click', function() {
-            const proxyId = this.getAttribute('data-proxy-id');
-            
-            // Блокируем кнопку и показываем индикатор загрузки
-            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Проверка...';
-            this.disabled = true;
-            
-            // Отправляем запрос на проверку прокси
-            fetch('/proxies/check/' + proxyId, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Восстанавливаем кнопку
-                this.innerHTML = '<i class="fas fa-sync-alt"></i> Проверить';
-                this.disabled = false;
-                
-                // Обновляем статус прокси
-                const statusElement = document.querySelector('#proxy-status-' + proxyId);
-                if (statusElement) {
-                    if (data.success) {
-                        statusElement.innerHTML = '<span class="badge bg-success">Работает</span>';
-                        
-                        // Обновляем класс строки
-                        const row = this.closest('tr');
-                        if (row) {
-                            row.classList.remove('proxy-unchecked', 'proxy-failed');
-                            row.classList.add('proxy-working');
-                        }
-                    } else {
-                        statusElement.innerHTML = '<span class="badge bg-danger">Не работает</span>';
-                        
-                        // Обновляем класс строки
-                        const row = this.closest('tr');
-                        if (row) {
-                            row.classList.remove('proxy-unchecked', 'proxy-working');
-                            row.classList.add('proxy-failed');
-                        }
-                    }
-                }
-                
-                // Показываем сообщение
-                showToast(data.success ? 'success' : 'error', data.message);
-            })
-            .catch(error => {
-                // Восстанавливаем кнопку
-                this.innerHTML = '<i class="fas fa-sync-alt"></i> Проверить';
-                this.disabled = false;
-                
-                // Показываем сообщение об ошибке с подробностями
-                showToast('error', 'Произошла ошибка при проверке прокси: ' + error.message);
-                console.error('Proxy check error:', error);
-            });
-        });
-    });
+    // Примечание: Обработка кнопок проверки прокси перенесена в main.js
+    // для избежания дублирования обработчиков событий
 });
 </script>
