@@ -56,7 +56,7 @@ class ImageSettingsController {
             }
             
             // Перенаправление обратно на страницу настроек
-            header('Location: /admin/image-settings?success=1');
+            header('Location: /image-settings?success=1');
             exit;
         }
     }
