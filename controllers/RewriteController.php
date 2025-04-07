@@ -8,11 +8,24 @@ class RewriteController extends BaseController {
      * Отображение страницы реврайта
      */
     public function index() {
-        // Получаем список реврайтнутого контента
-        $rewrittenContent = $this->getRewrittenContent();
+        // Получаем список реврайтнутого контента с подсчетом версий
+        $rewrittenContent = $this->db->fetchAll("
+            SELECT rc.*, oc.url as original_url, ps.name as source_name, ps.source_type,
+                  (SELECT COUNT(*) FROM rewrite_versions WHERE rewritten_id = rc.id) as version_count
+            FROM rewritten_content rc
+            JOIN original_content oc ON rc.original_id = oc.id
+            JOIN parsing_sources ps ON oc.source_id = ps.id
+            ORDER BY rc.rewrite_date DESC
+        ");
         
         // Получаем список оригинального контента, который еще не был реврайтнут
-        $originalContent = $this->getOriginalContent();
+        $originalContent = $this->db->fetchAll("
+            SELECT o.*, ps.name as source_name, ps.source_type
+            FROM original_content o
+            JOIN parsing_sources ps ON o.source_id = ps.id
+            WHERE o.is_processed = 0
+            ORDER BY o.parsed_at DESC
+        ");
         
         // Отображаем представление
         $this->render('rewrite/index', [
@@ -62,30 +75,46 @@ class RewriteController extends BaseController {
             return;
         }
         
-        // Получаем все реврайтнутые версии этого контента
-        $rewrittenVersions = $this->db->fetchAll("
+        // Получаем основную запись реврайтнутого контента
+        $mainRewrittenContent = $this->db->fetchOne("
             SELECT * FROM rewritten_content 
-            WHERE original_id = ? 
-            ORDER BY rewrite_date DESC
+            WHERE original_id = ?
+            ORDER BY id DESC LIMIT 1
         ", [$originalId]);
+        
+        // Получаем все версии реврайтнутого контента
+        $rewrittenVersions = [];
+        if ($mainRewrittenContent) {
+            $rewrittenVersions = $this->db->fetchAll("
+                SELECT rv.*, rc.status, rc.is_posted
+                FROM rewrite_versions rv
+                JOIN rewritten_content rc ON rv.rewritten_id = rc.id
+                WHERE rv.rewritten_id = ? 
+                ORDER BY rv.version_number DESC
+            ", [$mainRewrittenContent['id']]);
+        }
         
         // Получаем список аккаунтов для постинга
         $accounts = $this->getActiveAccounts();
         
         // Получаем ID версии из GET-параметра (если указан)
-        $selectedVersionId = isset($_GET['version']) ? intval($_GET['version']) : 
-                        (!empty($rewrittenVersions) ? $rewrittenVersions[0]['id'] : 0);
+        $selectedVersionNumber = isset($_GET['version']) ? intval($_GET['version']) : 
+                            (!empty($rewrittenVersions) ? $rewrittenVersions[0]['version_number'] : 0);
         
         // Получаем историю постов для всех версий этого контента
-        $posts = $this->db->fetchAll("
-            SELECT p.*, r.id as version_id, a.name as account_name, a.account_type_id, at.name as account_type_name
-            FROM posts p
-            JOIN rewritten_content r ON p.rewritten_id = r.id
-            JOIN accounts a ON p.account_id = a.id
-            JOIN account_types at ON a.account_type_id = at.id
-            WHERE r.original_id = ?
-            ORDER BY p.posted_at DESC
-        ", [$originalId]);
+        $posts = [];
+        if ($mainRewrittenContent) {
+            $posts = $this->db->fetchAll("
+                SELECT p.*, rv.version_number, a.name as account_name, a.account_type_id, at.name as account_type_name
+                FROM posts p
+                JOIN rewritten_content r ON p.rewritten_id = r.id
+                JOIN rewrite_versions rv ON p.version_id = rv.id
+                JOIN accounts a ON p.account_id = a.id
+                JOIN account_types at ON a.account_type_id = at.id
+                WHERE r.original_id = ?
+                ORDER BY p.posted_at DESC
+            ", [$originalId]);
+        }
         
         // Отображаем представление
         $this->render('rewrite/view', [
@@ -94,8 +123,9 @@ class RewriteController extends BaseController {
             'currentPage' => 'rewrite',
             'layout' => 'main',
             'originalContent' => $originalContent,
+            'mainRewrittenContent' => $mainRewrittenContent,
             'rewrittenVersions' => $rewrittenVersions,
-            'selectedVersionId' => $selectedVersionId,
+            'selectedVersionNumber' => $selectedVersionNumber,
             'accounts' => $accounts,
             'posts' => $posts
         ]);
@@ -118,39 +148,61 @@ class RewriteController extends BaseController {
                 return $this->handleAjaxError('Метод не поддерживается', 405);
             }
             
-            // Получаем данные о версии, чтобы знать ID оригинала
+            // Получаем данные о версии
             $version = $this->db->fetchOne("
-                SELECT original_id FROM rewritten_content WHERE id = ?
+                SELECT rv.rewritten_id, rc.original_id 
+                FROM rewrite_versions rv
+                JOIN rewritten_content rc ON rv.rewritten_id = rc.id
+                WHERE rv.id = ?
             ", [$id]);
             
             if (!$version) {
                 return $this->handleAjaxError('Версия не найдена', 404);
             }
             
+            $rewrittenId = $version['rewritten_id'];
             $originalId = $version['original_id'];
             
-            // Проверяем, есть ли другие версии для этого оригинала
+            // Проверяем, есть ли другие версии для этого реврайтнутого контента
             $otherVersionsCount = $this->db->fetchColumn("
-                SELECT COUNT(*) FROM rewritten_content 
-                WHERE original_id = ? AND id != ?
-            ", [$originalId, $id]);
+                SELECT COUNT(*) FROM rewrite_versions 
+                WHERE rewritten_id = ? AND id != ?
+            ", [$rewrittenId, $id]);
             
             // Начинаем транзакцию
             $this->db->getConnection()->beginTransaction();
             
             try {
                 // Удаляем все посты, связанные с этой версией
-                $this->db->delete('posts', 'rewritten_id = ?', [$id]);
+                $this->db->delete('posts', 'version_id = ?', [$id]);
                 
                 // Удаляем версию
-                $result = $this->db->delete('rewritten_content', 'id = ?', [$id]);
+                $result = $this->db->delete('rewrite_versions', 'id = ?', [$id]);
                 
-                // Если других версий нет, сбрасываем флаг is_processed у оригинала
+                // Если других версий нет, удаляем основную запись реврайтнутого контента
+                // и сбрасываем флаг is_processed у оригинала
                 if ($otherVersionsCount == 0) {
+                    $this->db->delete('rewritten_content', 'id = ?', [$rewrittenId]);
                     $this->db->update('original_content', [
                         'is_processed' => 0,
                         // Счетчик реврайтов не изменяем, так как он показывает историю
                     ], 'id = ?', [$originalId]);
+                } else {
+                    // Если есть другие версии, обновляем основную запись последней версией
+                    $latestVersion = $this->db->fetchOne("
+                        SELECT * FROM rewrite_versions 
+                        WHERE rewritten_id = ? 
+                        ORDER BY version_number DESC 
+                        LIMIT 1
+                    ", [$rewrittenId]);
+                    
+                    if ($latestVersion) {
+                        $this->db->update('rewritten_content', [
+                            'title' => $latestVersion['title'],
+                            'content' => $latestVersion['content'],
+                            'version_number' => $latestVersion['version_number']
+                        ], 'id = ?', [$rewrittenId]);
+                    }
                 }
                 
                 // Фиксируем транзакцию
@@ -271,39 +323,65 @@ class RewriteController extends BaseController {
             $this->db->getConnection()->beginTransaction();
             
             try {
-                // Сохраняем реврайтнутый контент
-                $rewrittenId = $this->db->insert('rewritten_content', [
-                    'original_id' => $originalContent['id'],
+                // Проверяем, существует ли уже реврайтнутая запись для этого контента
+                $existingRewrite = $this->db->fetchOne("
+                    SELECT * FROM rewritten_content WHERE original_id = ? ORDER BY id DESC LIMIT 1
+                ", [$originalContent['id']]);
+                
+                $rewrittenId = null;
+                $versionNumber = 1;
+                
+                if ($existingRewrite) {
+                    // Если существует запись, используем её ID и увеличиваем номер версии
+                    $rewrittenId = $existingRewrite['id'];
+                    $versionNumber = $this->db->fetchColumn("
+                        SELECT MAX(version_number) FROM rewrite_versions WHERE rewritten_id = ?
+                    ", [$rewrittenId]) + 1;
+                    
+                    // Обновляем основную запись с новым заголовком и контентом
+                    $this->db->update('rewritten_content', [
+                        'title' => $rewrittenTitle,
+                        'content' => $rewrittenContent,
+                        'rewrite_date' => date('Y-m-d H:i:s'),
+                        'version_number' => $versionNumber
+                    ], 'id = ?', [$rewrittenId]);
+                } else {
+                    // Если записи еще нет, создаем новую
+                    $rewrittenId = $this->db->insert('rewritten_content', [
+                        'original_id' => $originalContent['id'],
+                        'title' => $rewrittenTitle,
+                        'content' => $rewrittenContent,
+                        'rewrite_date' => date('Y-m-d H:i:s'),
+                        'status' => 'rewritten',
+                        'version_number' => $versionNumber,
+                        'is_current_version' => true
+                    ]);
+                }
+                
+                // Сохраняем версию в отдельной таблице
+                $versionId = $this->db->insert('rewrite_versions', [
+                    'rewritten_id' => $rewrittenId,
+                    'version_number' => $versionNumber,
                     'title' => $rewrittenTitle,
-                    'content' => $rewrittenContent,
-                    'rewrite_date' => date('Y-m-d H:i:s'),
-                    'status' => 'rewritten'
+                    'content' => $rewrittenContent
                 ]);
                 
-                // Проверяем результат
-                if ($rewrittenId) {
-                    // Увеличиваем счетчик реврайтов, но оставляем статус is_processed в 1
-                    // чтобы показывать, что контент был обработан хотя бы один раз
-                    $rewriteCount = intval($originalContent['rewrite_count']) + 1;
-                    
-                    $this->db->update('original_content', [
-                        'is_processed' => 1,
-                        'rewrite_count' => $rewriteCount
-                    ], 'id = ?', [$originalContent['id']]);
-                    
-                    // Логируем успешный реврайт
-                    Logger::info("Контент успешно реврайтнут через {$aiProvider}, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}, Счетчик реврайтов: {$rewriteCount}", 'rewrite');
-                    
-                    // Фиксируем транзакцию
-                    $this->db->getConnection()->commit();
-                    
-                    // Возвращаем на страницу с оригинальным контентом и его версиями
-                    return $this->handleSuccess('Контент успешно реврайтнут', '/rewrite/view/' . $originalContent['id'] . '?version=' . $rewrittenId);
-                } else {
-                    // Отменяем транзакцию в случае ошибки
-                    $this->db->getConnection()->rollBack();
-                    return $this->handleAjaxError('Ошибка при сохранении реврайтнутого контента');
-                }
+                // Увеличиваем счетчик реврайтов, оставляем статус is_processed в 1
+                $rewriteCount = intval($originalContent['rewrite_count']) + 1;
+                
+                $this->db->update('original_content', [
+                    'is_processed' => 1,
+                    'rewrite_count' => $rewriteCount
+                ], 'id = ?', [$originalContent['id']]);
+                
+                // Логируем успешный реврайт
+                Logger::info("Контент успешно реврайтнут через {$aiProvider}, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}, Версия: {$versionNumber}", 'rewrite');
+                
+                // Фиксируем транзакцию
+                $this->db->getConnection()->commit();
+                
+                // Возвращаем на страницу с оригинальным контентом и его версиями
+                return $this->handleSuccess('Контент успешно реврайтнут', '/rewrite/view/' . $originalContent['id'] . '?version=' . $versionNumber);
             } catch (Exception $e) {
                 // Отменяем транзакцию в случае исключения
                 $this->db->getConnection()->rollBack();
@@ -327,20 +405,24 @@ class RewriteController extends BaseController {
         try {
             // Получаем данные из POST
             $rewrittenId = $this->post('rewritten_id');
+            $versionId = $this->post('version_id');
             $accountId = $this->post('account_id');
             
             // Проверяем обязательные поля
-            if (empty($rewrittenId) || empty($accountId)) {
-                return $this->handleAjaxError('Необходимо указать ID контента и ID аккаунта');
+            if (empty($rewrittenId) || empty($versionId) || empty($accountId)) {
+                return $this->handleAjaxError('Необходимо указать ID контента, ID версии и ID аккаунта');
             }
             
-            // Получаем данные реврайтнутого контента
-            $content = $this->db->fetchOne("
-                SELECT * FROM rewritten_content WHERE id = ?
-            ", [$rewrittenId]);
+            // Получаем данные версии реврайтнутого контента
+            $version = $this->db->fetchOne("
+                SELECT rv.*, rc.original_id
+                FROM rewrite_versions rv
+                JOIN rewritten_content rc ON rv.rewritten_id = rc.id
+                WHERE rv.id = ?
+            ", [$versionId]);
             
-            if (!$content) {
-                return $this->handleAjaxError('Контент не найден', 404);
+            if (!$version) {
+                return $this->handleAjaxError('Версия контента не найдена', 404);
             }
             
             // Получаем данные аккаунта
@@ -361,6 +443,7 @@ class RewriteController extends BaseController {
             // Для примера просто создаем запись о публикации
             $postId = $this->db->insert('posts', [
                 'rewritten_id' => $rewrittenId,
+                'version_id' => $versionId,
                 'account_id' => $accountId,
                 'post_url' => 'https://example.com/post/123',
                 'posted_at' => date('Y-m-d H:i:s'),

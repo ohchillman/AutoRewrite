@@ -82,7 +82,8 @@
                             <tr>
                                 <th>Заголовок</th>
                                 <th>Источник</th>
-                                <th>Дата реврайта</th>
+                                <th>Версий</th>
+                                <th>Дата последнего реврайта</th>
                                 <th>Статус</th>
                                 <th>Действия</th>
                             </tr>
@@ -116,6 +117,9 @@
                                         </a>
                                     </div>
                                 </td>
+                                <td>
+                                    <span class="badge bg-info"><?php echo $content['version_count']; ?></span>
+                                </td>
                                 <td><?php echo date('d.m.Y H:i', strtotime($content['rewrite_date'])); ?></td>
                                 <td>
                                     <?php
@@ -133,9 +137,9 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                    <a href="/rewrite/view/<?php echo $content['id']; ?>" class="btn btn-sm btn-info">
-                                        <i class="fas fa-eye"></i> Просмотр
-                                    </a>
+                                        <a href="/rewrite/view/<?php echo $content['original_id']; ?>" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> Просмотр
+                                        </a>
                                         <button type="button" class="btn btn-sm btn-danger delete-btn" 
                                                 data-delete-url="/rewrite/delete/<?php echo $content['id']; ?>"
                                                 data-item-name="контент '<?php echo htmlspecialchars($content['title']); ?>'">

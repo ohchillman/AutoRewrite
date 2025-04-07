@@ -264,7 +264,7 @@ function setupDeleteConfirmation() {
  * Настройка реврайта контента
  */
 function setupRewriteContent() {
-    // Находим все кнопки реврайта
+    // Найдите все кнопки реврайта
     document.querySelectorAll('.rewrite-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             const contentId = this.getAttribute('data-content-id');
@@ -286,14 +286,17 @@ function setupRewriteContent() {
                 rewriteModal.hide();
                 
                 if (data.success) {
+                    // Показываем уведомление об успехе
                     showNotification(data.message, 'success');
                     
+                    // Если есть редирект, переходим по нему
                     if (data.redirect) {
                         window.location.href = data.redirect;
                     } else if (data.refresh) {
                         window.location.reload();
                     }
                 } else {
+                    // Показываем уведомление об ошибке
                     showNotification(data.message, 'danger');
                 }
             })
@@ -304,6 +307,35 @@ function setupRewriteContent() {
             });
         });
     });
+}
+
+
+function showNotification(message, type) {
+    // Создаем элемент уведомления
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Находим контейнер для уведомлений (обычно первый элемент в main)
+    const container = document.querySelector('main');
+    
+    // Вставляем уведомление в начало контейнера
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    } else {
+        // Если контейнер не найден, добавляем в body
+        document.body.insertBefore(alertDiv, document.body.firstChild);
+    }
+    
+    // Автоматически удаляем уведомление через 5 секунд
+    setTimeout(() => {
+        const bsAlert = new bootstrap.Alert(alertDiv);
+        bsAlert.close();
+    }, 5000);
 }
 
 /**

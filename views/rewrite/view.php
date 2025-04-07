@@ -48,16 +48,16 @@
                 </div>
                 <?php else: ?>
                 <ul class="nav nav-tabs mb-3" id="versionsTabs" role="tablist">
-                    <?php foreach ($rewrittenVersions as $index => $version): ?>
+                    <?php foreach ($rewrittenVersions as $version): ?>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link <?php echo $version['id'] == $selectedVersionId ? 'active' : ''; ?>" 
-                                id="version-tab-<?php echo $version['id']; ?>" 
+                        <button class="nav-link <?php echo $version['version_number'] == $selectedVersionNumber ? 'active' : ''; ?>" 
+                                id="version-tab-<?php echo $version['version_number']; ?>" 
                                 data-bs-toggle="tab" 
-                                data-bs-target="#version-content-<?php echo $version['id']; ?>" 
+                                data-bs-target="#version-content-<?php echo $version['version_number']; ?>" 
                                 type="button" 
                                 role="tab">
-                            Версия <?php echo count($rewrittenVersions) - $index; ?> 
-                            <span class="badge bg-secondary"><?php echo date('d.m.Y', strtotime($version['rewrite_date'])); ?></span>
+                            Версия <?php echo $version['version_number']; ?> 
+                            <span class="badge bg-secondary"><?php echo date('d.m.Y', strtotime($version['created_at'])); ?></span>
                         </button>
                     </li>
                     <?php endforeach; ?>
@@ -65,8 +65,8 @@
                 
                 <div class="tab-content" id="versionsTabsContent">
                     <?php foreach ($rewrittenVersions as $version): ?>
-                    <div class="tab-pane fade <?php echo $version['id'] == $selectedVersionId ? 'show active' : ''; ?>" 
-                         id="version-content-<?php echo $version['id']; ?>" 
+                    <div class="tab-pane fade <?php echo $version['version_number'] == $selectedVersionNumber ? 'show active' : ''; ?>" 
+                         id="version-content-<?php echo $version['version_number']; ?>" 
                          role="tabpanel">
                         <div class="d-flex justify-content-between mb-2">
                             <h6><?php echo htmlspecialchars($version['title']); ?></h6>
@@ -86,7 +86,7 @@
                         </div>
                         
                         <div class="small text-muted">
-                            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['rewrite_date'])); ?></div>
+                            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['created_at'])); ?></div>
                             <div>
                                 <strong>Статус:</strong> 
                                 <?php
@@ -113,7 +113,8 @@
                             </div>
                             <?php else: ?>
                             <form action="/rewrite/publishPost" method="POST" class="ajax-form">
-                                <input type="hidden" name="rewritten_id" value="<?php echo $version['id']; ?>">
+                                <input type="hidden" name="rewritten_id" value="<?php echo $mainRewrittenContent['id']; ?>">
+                                <input type="hidden" name="version_id" value="<?php echo $version['id']; ?>">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -171,8 +172,8 @@
                             <?php foreach ($posts as $post): ?>
                             <tr>
                                 <td>
-                                    <a href="/rewrite/view/<?php echo $originalContent['id']; ?>?version=<?php echo $post['version_id']; ?>">
-                                        Версия #<?php echo $post['version_id']; ?>
+                                    <a href="/rewrite/view/<?php echo $originalContent['id']; ?>?version=<?php echo $post['version_number']; ?>">
+                                        Версия #<?php echo $post['version_number']; ?>
                                     </a>
                                 </td>
                                 <td><?php echo htmlspecialchars($post['account_name']); ?></td>
@@ -327,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Показываем уведомление об ошибке
                     showNotification(data.message, 'danger');
                 }
-                })
+            })
             .catch(error => {
                 rewriteModal.hide();
                 showNotification('Произошла ошибка при обработке запроса', 'danger');
