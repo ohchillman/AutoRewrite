@@ -91,6 +91,16 @@ class Database {
         }
         $setClause = implode(', ', $set);
         
+        // Исправление: проверяем, является ли $where массивом, и конвертируем его в строку, если это так
+        if (is_array($where)) {
+            $whereConditions = [];
+            foreach ($where as $column => $value) {
+                $whereConditions[] = "{$column} = ?";
+                $whereParams[] = $value;
+            }
+            $where = implode(' AND ', $whereConditions);
+        }
+        
         $sql = "UPDATE {$table} SET {$setClause} WHERE {$where}";
         $params = array_merge(array_values($data), $whereParams);
         
@@ -100,6 +110,16 @@ class Database {
     
     // Удалить запись
     public function delete($table, $where, $params = []) {
+        // Исправление: проверяем, является ли $where массивом, и конвертируем его в строку, если это так
+        if (is_array($where)) {
+            $whereConditions = [];
+            foreach ($where as $column => $value) {
+                $whereConditions[] = "{$column} = ?";
+                $params[] = $value;
+            }
+            $where = implode(' AND ', $whereConditions);
+        }
+        
         $sql = "DELETE FROM {$table} WHERE {$where}";
         $stmt = $this->query($sql, $params);
         return $stmt->rowCount();

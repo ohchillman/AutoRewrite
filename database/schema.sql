@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Таблица для прокси
 CREATE TABLE IF NOT EXISTS proxies (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
     ip VARCHAR(255) NOT NULL,
     port INT NOT NULL,
     username VARCHAR(255),
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     is_active BOOLEAN DEFAULT TRUE,
     last_check TIMESTAMP NULL,
     status ENUM('working', 'failed', 'unchecked') DEFAULT 'unchecked',
+    ip_change_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -88,6 +90,8 @@ CREATE TABLE IF NOT EXISTS original_content (
     media_urls JSON,
     parsed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_processed BOOLEAN DEFAULT FALSE,
+    last_error TEXT NULL,
+    error_count INT DEFAULT 0,
     FOREIGN KEY (source_id) REFERENCES parsing_sources(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -131,6 +135,19 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- Таблица для отслеживания использования API
+CREATE TABLE IF NOT EXISTS api_usage (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    api_type VARCHAR(50) NOT NULL,
+    tokens_in INT NOT NULL DEFAULT 0,
+    tokens_out INT NOT NULL DEFAULT 0,
+    cost DECIMAL(10,6) DEFAULT 0,
+    request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    response_time INT DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'success',
+    error_message TEXT NULL
+) ENGINE=InnoDB;
+
 -- Вставка начальных данных для типов аккаунтов
 INSERT INTO account_types (name, description) VALUES 
 ('twitter', 'Twitter аккаунты'),
@@ -140,9 +157,11 @@ INSERT INTO account_types (name, description) VALUES
 
 -- Вставка начальных настроек
 INSERT INTO settings (setting_key, setting_value) VALUES 
-('makecom_api_key', ''),
-('makecom_api_url', ''),
-('rewrite_template', 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}'),
+('gemini_api_key', ''),
+('gemini_model', 'gemini-pro:free'),
+('rewrite_template', 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки. Не сокращай текст, сохраняй структуру абзацев и примерную длину. Сделай текст уникальным: {content}'),
 ('max_parsing_threads', '3'),
 ('max_rewrite_threads', '2'),
-('max_posting_threads', '5');
+('max_posting_threads', '5'),
+('min_content_length', '100'),
+('auto_posting', '0');

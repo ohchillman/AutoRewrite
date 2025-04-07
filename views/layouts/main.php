@@ -69,6 +69,25 @@
                 
                 <!-- Page content -->
                 <?php echo $content; ?>
+
+                <!-- Добавляем отладочный блок сюда -->
+                <?php if (defined('DEBUG') && DEBUG): ?>
+                <div class="debug-info card mt-3">
+                    <div class="card-header">
+                        <h5>Отладочная информация</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        $logFile = '/tmp/autorewrite_logs/parsing.log';
+                        if (file_exists($logFile)) {
+                            $logContent = file_get_contents($logFile);
+                            $lastLogs = array_slice(explode("\n", $logContent), -10);
+                            echo "<pre>" . htmlspecialchars(implode("\n", $lastLogs)) . "</pre>";
+                        }
+                        ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </main>
         </div>
     </div>

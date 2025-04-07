@@ -29,12 +29,8 @@
                                 <label for="source_type" class="form-label">Тип источника</label>
                                 <select class="form-select" id="source_type" name="source_type" required>
                                     <option value="">Выберите тип источника</option>
-                                    <option value="twitter">Twitter</option>
-                                    <option value="linkedin">LinkedIn</option>
-                                    <option value="youtube">YouTube</option>
-                                    <option value="blog">Блог</option>
                                     <option value="rss">RSS-лента</option>
-                                    <option value="other">Другое</option>
+                                    <option value="blog">Новостной сайт</option>
                                 </select>
                             </div>
                         </div>
@@ -68,66 +64,6 @@
                         </div>
                     </div>
 
-                    <div class="row source-fields twitter-fields d-none">
-                        <div class="col-md-12">
-                            <h6 class="mb-3">Дополнительные настройки для Twitter</h6>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="twitter_username" class="form-label">Имя пользователя</label>
-                                <input type="text" class="form-control" id="twitter_username" name="additional_settings[username]">
-                                <div class="form-text">Имя пользователя без @</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="twitter_count" class="form-label">Количество твитов</label>
-                                <input type="number" class="form-control" id="twitter_count" name="additional_settings[count]" min="1" max="100" value="20">
-                                <div class="form-text">Количество твитов для получения</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row source-fields linkedin-fields d-none">
-                        <div class="col-md-12">
-                            <h6 class="mb-3">Дополнительные настройки для LinkedIn</h6>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="linkedin_username" class="form-label">Имя пользователя/компании</label>
-                                <input type="text" class="form-control" id="linkedin_username" name="additional_settings[username]">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="linkedin_type" class="form-label">Тип профиля</label>
-                                <select class="form-select" id="linkedin_type" name="additional_settings[type]">
-                                    <option value="person">Личный профиль</option>
-                                    <option value="company">Компания</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row source-fields youtube-fields d-none">
-                        <div class="col-md-12">
-                            <h6 class="mb-3">Дополнительные настройки для YouTube</h6>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="youtube_channel" class="form-label">ID канала</label>
-                                <input type="text" class="form-control" id="youtube_channel" name="additional_settings[channel_id]">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="youtube_count" class="form-label">Количество видео</label>
-                                <input type="number" class="form-control" id="youtube_count" name="additional_settings[count]" min="1" max="50" value="10">
-                                <div class="form-text">Количество видео для получения</div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="row source-fields rss-fields d-none">
                         <div class="col-md-12">
                             <h6 class="mb-3">Дополнительные настройки для RSS</h6>
@@ -144,9 +80,43 @@
                                 <label for="rss_full_content" class="form-label">Получать полный контент</label>
                                 <select class="form-select" id="rss_full_content" name="additional_settings[full_content]">
                                     <option value="1">Да</option>
-                                    <option value="0">Нет</option>
+                                    <option value="0" selected>Нет</option>
                                 </select>
-                                <div class="form-text">Пытаться получить полный контент статьи</div>
+                                <div class="form-text">Пытаться получить полный контент статьи (может занять больше времени)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row source-fields blog-fields d-none">
+                        <div class="col-md-12">
+                            <h6 class="mb-3">Дополнительные настройки для новостного сайта</h6>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="blog_items" class="form-label">Количество записей</label>
+                                <input type="number" class="form-control" id="blog_items" name="additional_settings[items]" min="1" max="50" value="20">
+                                <div class="form-text">Количество записей для получения</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="blog_full_content" class="form-label">Получать полный контент</label>
+                                <select class="form-select" id="blog_full_content" name="additional_settings[full_content]">
+                                    <option value="1">Да</option>
+                                    <option value="0" selected>Нет</option>
+                                </select>
+                                <div class="form-text">Пытаться получить полный контент статьи (может занять больше времени)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="selectors_container" class="form-label">Селекторы для парсинга (опционально)</label>
+                                <input type="text" class="form-control mb-2" id="selectors_container" name="additional_settings[selectors][container]" placeholder="XPath селектор для контейнеров статей, например: //article">
+                                <input type="text" class="form-control mb-2" id="selectors_title" name="additional_settings[selectors][title]" placeholder="XPath селектор для заголовка, например: .//h1 | .//h2">
+                                <input type="text" class="form-control mb-2" id="selectors_content" name="additional_settings[selectors][content]" placeholder="XPath селектор для контента, например: .//div[contains(@class, 'content')]">
+                                <input type="text" class="form-control mb-2" id="selectors_link" name="additional_settings[selectors][link]" placeholder="XPath селектор для ссылки, например: .//a[contains(@class, 'read-more')] | .//h2/a">
+                                <input type="text" class="form-control" id="selectors_date" name="additional_settings[selectors][date]" placeholder="XPath селектор для даты, например: .//time | .//span[contains(@class, 'date')]">
+                                <div class="form-text">Оставьте пустыми для автоматического определения</div>
                             </div>
                         </div>
                     </div>
@@ -190,20 +160,11 @@
                                 <td>
                                     <?php
                                     switch ($source['source_type']) {
-                                        case 'twitter':
-                                            echo '<span class="badge bg-info">Twitter</span>';
-                                            break;
-                                        case 'linkedin':
-                                            echo '<span class="badge bg-primary">LinkedIn</span>';
-                                            break;
-                                        case 'youtube':
-                                            echo '<span class="badge bg-danger">YouTube</span>';
+                                        case 'rss':
+                                            echo '<span class="badge bg-info">RSS</span>';
                                             break;
                                         case 'blog':
-                                            echo '<span class="badge bg-success">Блог</span>';
-                                            break;
-                                        case 'rss':
-                                            echo '<span class="badge bg-warning">RSS</span>';
+                                            echo '<span class="badge bg-success">Новостной сайт</span>';
                                             break;
                                         default:
                                             echo '<span class="badge bg-secondary">Другое</span>';
@@ -317,14 +278,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Показываем нужные поля в зависимости от типа источника
             const sourceType = this.value.toLowerCase();
             
-            if (sourceType === 'twitter') {
-                document.querySelector('.twitter-fields').classList.remove('d-none');
-            } else if (sourceType === 'linkedin') {
-                document.querySelector('.linkedin-fields').classList.remove('d-none');
-            } else if (sourceType === 'youtube') {
-                document.querySelector('.youtube-fields').classList.remove('d-none');
-            } else if (sourceType === 'rss') {
+            if (sourceType === 'rss') {
                 document.querySelector('.rss-fields').classList.remove('d-none');
+            } else if (sourceType === 'blog') {
+                document.querySelector('.blog-fields').classList.remove('d-none');
             }
         });
     }

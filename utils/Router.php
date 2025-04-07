@@ -10,7 +10,7 @@ class Router {
      * 
      * @param string $route URL маршрута
      * @param string $controller Имя контроллера
-     * @param string $action Имя метода в контроллере
+     * @param string $action Имя метода в контроллере по умолчанию
      */
     public function addRoute($route, $controller, $action) {
         $this->routes[$route] = [
@@ -29,15 +29,22 @@ class Router {
         
         // Разбиваем URL на части
         $segments = explode('/', $uri);
-        $route = isset($segments[0]) ? $segments[0] : '';
+        $baseRoute = isset($segments[0]) ? $segments[0] : '';
         
         // Проверяем, существует ли такой маршрут
-        if (isset($this->routes[$route])) {
-            $controller = $this->routes[$route]['controller'];
-            $action = $this->routes[$route]['action'];
+        if (isset($this->routes[$baseRoute])) {
+            $controller = $this->routes[$baseRoute]['controller'];
+            $defaultAction = $this->routes[$baseRoute]['action'];
             
-            // Проверяем, есть ли дополнительные параметры в URL
-            $params = array_slice($segments, 1);
+            if (empty($action)) {
+                $action = $defaultAction;
+            }
+            
+            // Определяем действие из URL или используем действие по умолчанию
+            $action = isset($segments[1]) && !empty($segments[1]) ? $segments[1] : $this->routes[$baseRoute]['action'];
+            
+            // Получаем параметры из URL (все после действия)
+            $params = array_slice($segments, 2);
             
             // Подключаем контроллер
             $controllerFile = CONTROLLERS_PATH . '/' . $controller . '.php';
@@ -60,13 +67,13 @@ class Router {
             }
         } else {
             // Если маршрут не найден, проверяем, может быть это главная страница
-            if ($route === '') {
+            if ($baseRoute === '') {
                 // Перенаправляем на главную страницу
                 header('Location: /');
                 exit;
             }
             
-            $this->handleError(404, "Маршрут {$route} не найден");
+            $this->handleError(404, "Маршрут {$baseRoute} не найден");
         }
     }
     

@@ -7,19 +7,41 @@
             <div class="card-body">
                 <form action="/settings/save" method="POST" class="ajax-form">
                     <div class="row">
-                        <!-- Make.com API настройки -->
+                        <!-- Gemini API настройки -->
                         <div class="col-md-12 mb-4">
-                            <h5>Make.com API</h5>
+                            <h5>AI API настройки</h5>
                             <hr>
                             <div class="mb-3">
-                                <label for="makecom_api_key" class="form-label">API ключ</label>
-                                <input type="text" class="form-control" id="makecom_api_key" name="settings[makecom_api_key]" value="<?php echo htmlspecialchars($settings['makecom_api_key'] ?? ''); ?>">
-                                <div class="form-text">Ключ API для доступа к Make.com</div>
+                                <label for="ai_provider" class="form-label">API провайдер</label>
+                                <select class="form-select" id="ai_provider" name="settings[ai_provider]">
+                                    <option value="gemini" <?php echo ($settings['ai_provider'] ?? 'gemini') == 'gemini' ? 'selected' : ''; ?>>Gemini API (Google)</option>
+                                    <option value="openrouter" <?php echo ($settings['ai_provider'] ?? '') == 'openrouter' ? 'selected' : ''; ?>>OpenRouter</option>
+                                </select>
+                                <div class="form-text">Выберите провайдера API для генерации контента</div>
                             </div>
+                            
+                            <div class="mb-3 gemini-settings" <?php echo ($settings['ai_provider'] ?? 'gemini') != 'gemini' ? 'style="display:none;"' : ''; ?>>
+                                <label for="gemini_api_key" class="form-label">API ключ Gemini</label>
+                                <input type="text" class="form-control" id="gemini_api_key" name="settings[gemini_api_key]" value="<?php echo htmlspecialchars($settings['gemini_api_key'] ?? ''); ?>">
+                                <div class="form-text">Ключ API для доступа к Gemini API. Получите его на <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></div>
+                            </div>
+                            
+                            <div class="mb-3 openrouter-settings" <?php echo ($settings['ai_provider'] ?? 'gemini') != 'openrouter' ? 'style="display:none;"' : ''; ?>>
+                                <label for="openrouter_api_key" class="form-label">API ключ OpenRouter</label>
+                                <input type="text" class="form-control" id="openrouter_api_key" name="settings[openrouter_api_key]" value="<?php echo htmlspecialchars($settings['openrouter_api_key'] ?? ''); ?>">
+                                <div class="form-text">Ключ API для доступа к OpenRouter. Получите его на <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a></div>
+                            </div>
+                            
                             <div class="mb-3">
-                                <label for="makecom_api_url" class="form-label">URL вебхука</label>
-                                <input type="text" class="form-control" id="makecom_api_url" name="settings[makecom_api_url]" value="<?php echo htmlspecialchars($settings['makecom_api_url'] ?? ''); ?>">
-                                <div class="form-text">URL вебхука для отправки запросов на реврайт</div>
+                                <label for="gemini_model" class="form-label">Модель</label>
+                                <select class="form-select" id="gemini_model" name="settings[gemini_model]">
+                                    <option value="gemini-2.0-flash-thinking-exp:free" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-2.0-flash-thinking-exp:free' ? 'selected' : ''; ?>>Gemini 2.0 Flash Thinking (Free)</option>
+                                    <option value="gemini-pro-2.0-exp:free" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-pro-2.0-exp:free' ? 'selected' : ''; ?>>Gemini Pro 2.0 (Free)</option>
+                                    <option value="gemini-pro-1.5:free" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-pro-1.5:free' ? 'selected' : ''; ?>>Gemini Pro 1.5 (Free)</option>
+                                    <option value="gemini-1.5-flash:free" <?php echo ($settings['gemini_model'] ?? '') == 'gemini-1.5-flash:free' ? 'selected' : ''; ?>>Gemini 1.5 Flash (Free)</option>
+                                    <option value="gemini-pro:free" <?php echo ($settings['gemini_model'] ?? 'gemini-pro:free') == 'gemini-pro:free' ? 'selected' : ''; ?>>Gemini Pro (Free)</option>
+                                </select>
+                                <div class="form-text">Модель для генерации контента. При использовании OpenRouter будет добавлен префикс "google/".</div>
                             </div>
                         </div>
 
@@ -29,7 +51,7 @@
                             <hr>
                             <div class="mb-3">
                                 <label for="rewrite_template" class="form-label">Шаблон запроса для реврайта</label>
-                                <textarea class="form-control" id="rewrite_template" name="settings[rewrite_template]" rows="3"><?php echo htmlspecialchars($settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки: {content}'); ?></textarea>
+                                <textarea class="form-control" id="rewrite_template" name="settings[rewrite_template]" rows="3"><?php echo htmlspecialchars($settings['rewrite_template'] ?? 'Перепиши следующий текст, сохраняя смысл, но изменяя формулировки. Не сокращай текст, сохраняй структуру абзацев и примерную длину. Сделай текст уникальным: {content}'); ?></textarea>
                                 <div class="form-text">Шаблон запроса для реврайта, где {content} будет заменен на оригинальный текст</div>
                             </div>
                         </div>
@@ -108,3 +130,21 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const providerSelect = document.getElementById('ai_provider');
+    const geminiSettings = document.querySelector('.gemini-settings');
+    const openrouterSettings = document.querySelector('.openrouter-settings');
+    
+    providerSelect.addEventListener('change', function() {
+        if (this.value === 'gemini') {
+            geminiSettings.style.display = 'block';
+            openrouterSettings.style.display = 'none';
+        } else if (this.value === 'openrouter') {
+            geminiSettings.style.display = 'none';
+            openrouterSettings.style.display = 'block';
+        }
+    });
+});
+</script>

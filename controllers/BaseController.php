@@ -24,14 +24,11 @@ class BaseController {
      * @param array $data Данные для представления
      */
     protected function render($view, $data = []) {
-        // Если это AJAX запрос к основному эндпоинту (index), то возвращаем ошибку в JSON
-        // Но позволяем AJAX запросам к другим эндпоинтам (add, delete, check) проходить дальше
+        // Если это AJAX запрос к основному эндпоинту (index), проверяем
+        // Но не блокируем автоматически - лучше всегда давать осмысленный ответ
         if ($this->isAjax() && $this->isIndexEndpoint()) {
-            $this->jsonResponse([
-                'success' => false,
-                'message' => 'Неверный запрос. Этот эндпоинт не предназначен для AJAX запросов.'
-            ], 400);
-            return;
+            // Вместо возврата ошибки, просто логируем
+            Logger::debug('AJAX запрос к index эндпоинту: ' . $_SERVER['REQUEST_URI'], 'ajax');
         }
         
         $this->view->render($view, $data);
@@ -84,6 +81,9 @@ class BaseController {
             ob_end_clean();
         }
         
+        // Логирование для отладки
+        Logger::debug('Отправляется JSON ответ: ' . json_encode($data), 'ajax');
+        
         http_response_code($statusCode);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
@@ -110,5 +110,90 @@ class BaseController {
      */
     protected function get($key, $default = null) {
         return isset($_GET[$key]) ? $_GET[$key] : $default;
+    }
+    
+    /**
+     * Получение данных из JSON тела запроса
+     * 
+     * @return array Данные из JSON тела запроса
+     */
+    protected function getJsonInput() {
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Logger::error('Ошибка декодирования JSON: ' . json_last_error_msg() . '. Входящие данные: ' . $input, 'ajax');
+            return [];
+        }
+        
+        return $data ?: [];
+    }
+    
+    /**
+     * Проверяет текущий HTTP метод
+     * 
+     * @param string $method Метод для проверки (GET, POST, PUT, DELETE и т.д.)
+     * @return bool Соответствует ли текущий метод запроса указанному
+     */
+    protected function isMethod($method) {
+        return strtoupper($_SERVER['REQUEST_METHOD']) === strtoupper($method);
+    }
+    
+    /**
+     * Обработка ошибок для AJAX запросов
+     * 
+     * @param string $message Сообщение об ошибке
+     * @param int $statusCode HTTP код ошибки
+     */
+    protected function handleAjaxError($message, $statusCode = 400) {
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => $message
+            ], $statusCode);
+        } else {
+            $_SESSION['error'] = $message;
+            $this->redirect($this->getReferer());
+        }
+    }
+    
+    /**
+     * Обработка успешных операций
+     * 
+     * @param string $message Сообщение об успехе
+     * @param string $redirectUrl URL для перенаправления
+     * @param bool $refresh Обновить текущую страницу
+     */
+    protected function handleSuccess($message, $redirectUrl = null, $refresh = false) {
+        if ($this->isAjax()) {
+            $response = [
+                'success' => true,
+                'message' => $message
+            ];
+            
+            if ($redirectUrl) {
+                $response['redirect'] = $redirectUrl;
+            }
+            
+            if ($refresh) {
+                $response['refresh'] = true;
+            }
+            
+            $this->jsonResponse($response);
+        } else {
+            $_SESSION['success'] = $message;
+            if ($redirectUrl) {
+                $this->redirect($redirectUrl);
+            }
+        }
+    }
+    
+    /**
+     * Получает URL страницы, с которой был осуществлен переход
+     * 
+     * @return string URL страницы
+     */
+    protected function getReferer() {
+        return isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/';
     }
 }
