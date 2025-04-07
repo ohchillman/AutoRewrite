@@ -47,31 +47,34 @@
                     У этого контента еще нет реврайтнутых версий. Нажмите на кнопку "Создать новую версию", чтобы создать первую версию.
                 </div>
                 <?php else: ?>
-                <ul class="nav nav-tabs mb-3" id="versionsTabs" role="tablist">
-                    <?php foreach ($rewrittenVersions as $version): ?>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link <?php echo $version['version_number'] == $selectedVersionNumber ? 'active' : ''; ?>" 
-                                id="version-tab-<?php echo $version['version_number']; ?>" 
-                                data-bs-toggle="tab" 
-                                data-bs-target="#version-content-<?php echo $version['version_number']; ?>" 
-                                type="button" 
-                                role="tab">
-                            Версия <?php echo $version['version_number']; ?> 
-                            <span class="badge bg-secondary"><?php echo date('d.m.Y', strtotime($version['created_at'])); ?></span>
-                        </button>
-                    </li>
-                    <?php endforeach; ?>
-                </ul>
+                    <ul class="nav nav-tabs mb-3" id="versionsTabs" role="tablist">
+                        <?php foreach ($rewrittenVersions as $version): ?>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link <?php echo $version['version_number'] == $selectedVersionNumber ? 'active' : ''; ?>" 
+                                    id="version-tab-<?php echo $version['version_number']; ?>" 
+                                    data-bs-toggle="tab" 
+                                    data-bs-target="#version-content-<?php echo $version['version_number']; ?>" 
+                                    type="button" 
+                                    role="tab"
+                                    aria-controls="version-content-<?php echo $version['version_number']; ?>"
+                                    aria-selected="<?php echo $version['version_number'] == $selectedVersionNumber ? 'true' : 'false'; ?>">
+                                Версия <?php echo $version['version_number']; ?> 
+                                <span class="badge bg-secondary"><?php echo date('d.m.Y', strtotime($version['created_at'])); ?></span>
+                            </button>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
                 
-                <div class="tab-content" id="versionsTabsContent">
-                    <?php foreach ($rewrittenVersions as $version): ?>
-                    <div class="tab-pane fade <?php echo $version['version_number'] == $selectedVersionNumber ? 'show active' : ''; ?>" 
-                         id="version-content-<?php echo $version['version_number']; ?>" 
-                         role="tabpanel">
-                        <div class="d-flex justify-content-between mb-2">
-                            <h6><?php echo htmlspecialchars($version['title']); ?></h6>
-                            <div>
-                                <button type="button" class="btn btn-sm btn-danger delete-version-btn" 
+                    <div class="tab-content" id="versionsTabsContent">
+                        <?php foreach ($rewrittenVersions as $version): ?>
+                        <div class="tab-pane fade <?php echo $version['version_number'] == $selectedVersionNumber ? 'show active' : ''; ?>" 
+                            id="version-content-<?php echo $version['version_number']; ?>" 
+                            role="tabpanel"
+                            aria-labelledby="version-tab-<?php echo $version['version_number']; ?>">
+                            <div class="d-flex justify-content-between mb-2">
+                                <h6><?php echo htmlspecialchars($version['title']); ?></h6>
+                                <div>
+                                  <button type="button" class="btn btn-sm btn-danger delete-version-btn" 
                                         data-delete-url="/rewrite/deleteVersion/<?php echo $version['id']; ?>"
                                         data-version-id="<?php echo $version['id']; ?>"
                                         data-bs-toggle="modal" 
@@ -79,65 +82,107 @@
                                     <i class="fas fa-trash"></i> Удалить версию
                                 </button>
                             </div>
-                        </div>
-                        
-                        <div class="content-box p-3 bg-light rounded mb-3">
-                            <?php echo nl2br(htmlspecialchars($version['content'])); ?>
-                        </div>
-                        
-                        <div class="small text-muted">
-                            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['created_at'])); ?></div>
-                            <div>
-                                <strong>Статус:</strong> 
-                                <?php
-                                switch ($version['status']) {
-                                    case 'rewritten':
-                                        echo '<span class="badge bg-success">Реврайтнут</span>';
-                                        break;
-                                    case 'posted':
-                                        echo '<span class="badge bg-primary">Опубликован</span>';
-                                        break;
-                                    default:
-                                        echo '<span class="badge bg-secondary">Ожидает</span>';
-                                }
-                                ?>
-                            </div>
-                        </div>
-                        
-                        <!-- Форма для публикации этой версии -->
-                        <div class="mt-3 pt-3 border-top">
-                            <h6>Опубликовать эту версию</h6>
-                            <?php if (empty($accounts)): ?>
-                            <div class="alert alert-warning">
-                                Нет активных аккаунтов для публикации. Добавьте аккаунты в разделе "Аккаунты".
-                            </div>
-                            <?php else: ?>
-                            <form action="/rewrite/publishPost" method="POST" class="ajax-form">
-                                <input type="hidden" name="rewritten_id" value="<?php echo $mainRewrittenContent['id']; ?>">
-                                <input type="hidden" name="version_id" value="<?php echo $version['id']; ?>">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <select class="form-select" name="account_id" required>
-                                                <option value="">Выберите аккаунт</option>
-                                                <?php foreach ($accounts as $account): ?>
-                                                <option value="<?php echo $account['id']; ?>">
-                                                    <?php echo htmlspecialchars($account['name'] . ' (' . $account['account_type_name'] . ')'); ?>
-                                                </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <button type="submit" class="btn btn-primary">
-                                            <i class="fas fa-paper-plane"></i> Опубликовать
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                            <?php endif; ?>
+                </div>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="content-box p-3 bg-light rounded mb-3">
+                    <?php echo nl2br(htmlspecialchars($version['content'])); ?>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <?php
+                // Проверяем, есть ли изображения для этой версии реврайта
+                if (!empty($images)): 
+                    $image = $images[0]; // Берем последнее изображение
+                ?>
+                <div class="card mb-3">
+                    <div class="card-body p-2">
+                        <img src="/uploads/images/<?php echo htmlspecialchars($image['image_path']); ?>" 
+                            alt="<?php echo htmlspecialchars($version['title']); ?>" 
+                            class="img-fluid rounded">
+                    </div>
+                    <div class="card-footer small text-muted">
+                        Сгенерировано: <?php echo date('d.m.Y H:i', strtotime($image['created_at'])); ?>
+                    </div>
+                </div>
+                <?php else: ?>
+                <div class="card mb-3">
+                    <div class="card-body p-3 text-center">
+                        <p class="text-muted mb-0">Изображение не сгенерировано</p>
+                        <button type="button" class="btn btn-sm btn-primary mt-2 generate-image-btn" 
+                                data-rewritten-id="<?php echo $mainRewrittenContent['id']; ?>"
+                                data-title="<?php echo htmlspecialchars($version['title']); ?>">
+                            <i class="fas fa-image"></i> Сгенерировать изображение
+                        </button>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <div class="small text-muted">
+            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['created_at'])); ?></div>
+            <div>
+                <strong>Статус:</strong> 
+                <?php
+                switch ($version['status']) {
+                    case 'rewritten':
+                        echo '<span class="badge bg-success">Реврайтнут</span>';
+                        break;
+                    case 'posted':
+                        echo '<span class="badge bg-primary">Опубликован</span>';
+                        break;
+                    default:
+                        echo '<span class="badge bg-secondary">Ожидает</span>';
+                }
+                ?>
+            </div>
+        </div>
+        
+        <!-- Форма для публикации этой версии -->
+        <div class="mt-3 pt-3 border-top">
+            <h6>Опубликовать эту версию</h6>
+            <?php if (empty($accounts)): ?>
+            <div class="alert alert-warning">
+                Нет активных аккаунтов для публикации. Добавьте аккаунты в разделе "Аккаунты".
+            </div>
+            <?php else: ?>
+            <form action="/rewrite/publishPost" method="POST" class="ajax-form">
+                <input type="hidden" name="rewritten_id" value="<?php echo $mainRewrittenContent['id']; ?>">
+                <input type="hidden" name="version_id" value="<?php echo $version['id']; ?>">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <select class="form-select" name="account_id" required>
+                                <option value="">Выберите аккаунт</option>
+                                <?php foreach ($accounts as $account): ?>
+                                <option value="<?php echo $account['id']; ?>">
+                                    <?php echo htmlspecialchars($account['name'] . ' (' . $account['account_type_name'] . ')'); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Опубликовать
+                        </button>
+                    </div>
+                </div>
+                
+                <?php if (!empty($images)): ?>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" value="1" id="includeImage_<?php echo $version['id']; ?>" name="include_image" checked>
+                    <label class="form-check-label" for="includeImage_<?php echo $version['id']; ?>">
+                        Включить изображение в публикацию
+                    </label>
+                </div>
+                <?php endif; ?>
+            </form>
+            <?php endif; ?>
+        </div>
+    </div>`
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
@@ -426,5 +471,81 @@ document.addEventListener('DOMContentLoaded', function() {
             overlay.style.display = 'none';
         }
     }
+
+    const generateImageBtns = document.querySelectorAll('.generate-image-btn');
+    if (generateImageBtns.length > 0) {
+        generateImageBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const rewrittenId = this.getAttribute('data-rewritten-id');
+                const title = this.getAttribute('data-title');
+                const buttonText = this.innerHTML;
+                
+                // Изменяем текст кнопки и делаем её неактивной
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Генерация...';
+                this.disabled = true;
+                
+                // Показываем индикатор загрузки
+                showLoading();
+                
+                // Отправляем запрос на генерацию изображения
+                fetch('/rewrite/generateImage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        rewritten_id: rewrittenId,
+                        title: title
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Скрываем индикатор загрузки
+                    hideLoading();
+                    
+                    if (data.success) {
+                        // Показываем уведомление об успехе
+                        showNotification(data.message, 'success');
+                        
+                        // Заменяем контейнер кнопки на изображение
+                        const cardBody = this.closest('.card-body');
+                        cardBody.innerHTML = `
+                            <img src="${data.image_url}" 
+                                alt="${title}" 
+                                class="img-fluid rounded">
+                        `;
+                        
+                        // Добавляем footer с датой
+                        const cardElement = this.closest('.card');
+                        const footerElement = document.createElement('div');
+                        footerElement.className = 'card-footer small text-muted';
+                        footerElement.textContent = 'Сгенерировано: ' + new Date(data.created_at).toLocaleString();
+                        cardElement.appendChild(footerElement);
+                    } else {
+                        // Восстанавливаем кнопку
+                        this.innerHTML = buttonText;
+                        this.disabled = false;
+                        
+                        // Показываем уведомление об ошибке
+                        showNotification(data.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    // Скрываем индикатор загрузки
+                    hideLoading();
+                    
+                    // Восстанавливаем кнопку
+                    this.innerHTML = buttonText;
+                    this.disabled = false;
+                    
+                    // Показываем уведомление об ошибке
+                    showNotification('Ошибка при обработке запроса: ' + error.message, 'danger');
+                    console.error('Error:', error);
+                });
+            });
+        });
+    }
 });
+
 </script>
