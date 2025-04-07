@@ -79,7 +79,7 @@ $router->addRoute('image-test/generate', 'ImageTestController', 'generate');
 $router->addRoute('proxies', 'ProxiesController', 'index');
 $router->addRoute('proxies/add', 'ProxiesController', 'add');
 $router->addRoute('proxies/delete', 'ProxiesController', 'delete');
-$router->addRoute('proxies/check', 'ProxiesController', 'check');
+$router->addRoute('proxies/test', 'ProxiesController', 'check');
 $router->addRoute('proxies/toggle', 'ProxiesController', 'toggle');
 $router->addRoute('proxies/changeIp', 'ProxiesController', 'changeIp');
 $router->addRoute('proxies/edit', 'ProxiesController', 'edit');
