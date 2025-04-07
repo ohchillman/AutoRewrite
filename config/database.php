@@ -54,6 +54,28 @@ class Database {
         }
     }
     
+    /**
+     * Выполнить произвольный SQL-запрос с параметрами
+     * 
+     * @param string $sql SQL-запрос
+     * @param array $params Параметры запроса
+     * @return int Количество затронутых строк
+     */
+    public function execute($sql, $params = []) {
+        try {
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->rowCount();
+        } catch (PDOException $e) {
+            if (DEBUG) {
+                die("Ошибка выполнения запроса: " . $e->getMessage() . "<br>SQL: " . $sql);
+            } else {
+                Logger::log('error', "Ошибка выполнения запроса: " . $e->getMessage() . " SQL: " . $sql);
+                die("Ошибка выполнения запроса к базе данных.");
+            }
+        }
+    }
+    
     // Получить одну запись
     public function fetchOne($sql, $params = []) {
         $stmt = $this->query($sql, $params);
