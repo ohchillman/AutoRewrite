@@ -620,7 +620,6 @@ class RewriteController extends BaseController {
                             'in a realistic photo manipulation style',
                             'as a 3D render',
                             'in a collage style',
-                            'with grunge texture',
                             'in a futuristic cyberpunk style',
                             'with subtle gradients and clean lines',
                             'as a political cartoon',
