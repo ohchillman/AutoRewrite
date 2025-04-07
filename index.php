@@ -67,6 +67,10 @@ $router->addRoute('', 'DashboardController', 'index');
 $router->addRoute('settings', 'SettingsController', 'index');
 $router->addRoute('settings/save', 'SettingsController', 'save');
 
+// Маршруты для настроек генерации изображений
+$router->addRoute('image-settings', 'ImageSettingsController', 'index');
+$router->addRoute('image-settings/save', 'ImageSettingsController', 'save');
+
 $router->addRoute('proxies', 'ProxiesController', 'index');
 $router->addRoute('proxies/add', 'ProxiesController', 'add');
 $router->addRoute('proxies/delete', 'ProxiesController', 'delete');
