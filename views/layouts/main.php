@@ -34,6 +34,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link text-white <?php echo $currentPage === 'image-settings' ? 'active' : ''; ?>" href="/image-settings">
+                                <i class="fas fa-image me-2"></i>
+                                Генерация изображений
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link text-white <?php echo $currentPage === 'proxies' ? 'active' : ''; ?>" href="/proxies">
                                 <i class="fas fa-shield-alt me-2"></i>
                                 Прокси

@@ -38,10 +38,25 @@ class ImageStorageManager {
      * @param int $height Высота изображения
      * @return int|false ID сохраненного изображения или false в случае ошибки
      */
-    public function saveGeneratedImage($rewrittenId, $imageData, $prompt, $width = 512, $height = 512) {
+    public function saveGeneratedImage($rewrittenId, $imageData, $prompt, $width = 512, $height = 512, $versionNumber = null) {
         try {
-            // Генерируем уникальное имя файла
-            $filename = 'img_' . $rewrittenId . '_' . time() . '_' . uniqid() . '.png';
+            // Обязательно проверяем и устанавливаем номер версии
+            if ($versionNumber === null) {
+                Logger::warning("Попытка сохранить изображение без номера версии для rewritten_id: $rewrittenId", 'image_storage');
+                
+                // Пытаемся получить максимальный номер версии из БД, если не передан
+                $versionNumber = $this->db->fetchColumn("
+                    SELECT MAX(version_number) FROM rewrite_versions 
+                    WHERE rewritten_id = ?
+                ", [$rewrittenId]);
+                
+                if (!$versionNumber) {
+                    $versionNumber = 1; // Если не найден, используем 1 по умолчанию
+                }
+            }
+            
+            // Генерируем уникальное имя файла, включая номер версии
+            $filename = 'img_' . $rewrittenId . '_v' . $versionNumber . '_' . time() . '_' . uniqid() . '.png';
             $filePath = $this->uploadDir . $filename;
             
             // Сохраняем изображение в файл
@@ -57,6 +72,7 @@ class ImageStorageManager {
                 'prompt' => $prompt,
                 'width' => $width,
                 'height' => $height,
+                'version_number' => $versionNumber, // Обязательно включаем номер версии
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
@@ -149,7 +165,11 @@ class ImageStorageManager {
      */
     public function getImagesForRewrittenContent($rewrittenId) {
         try {
-            return $this->db->fetchAll("SELECT * FROM generated_images WHERE rewritten_id = ? ORDER BY created_at DESC", [$rewrittenId]);
+            return $this->db->fetchAll("
+                SELECT * FROM generated_images 
+                WHERE rewritten_id = ? 
+                ORDER BY version_number, created_at DESC
+            ", [$rewrittenId]);
         } catch (Exception $e) {
             Logger::error('Error getting images for rewritten content: ' . $e->getMessage(), 'image_storage');
             return [];

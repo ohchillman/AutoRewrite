@@ -44,6 +44,18 @@ services:
     networks:
       - autorewrite-network
 
+  pma:
+    image: phpmyadmin/phpmyadmin:latest
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: root_password
+    depends_on:
+      - db
+    networks:
+      - autorewrite-network
+
 networks:
   autorewrite-network:
     driver: bridge

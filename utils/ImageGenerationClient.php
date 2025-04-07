@@ -43,25 +43,37 @@ class ImageGenerationClient {
         
         try {
             // Отправляем запрос к API
+            Logger::debug("Sending request to: " . $url, 'image_generation');
+            Logger::debug("Request data: " . json_encode($data), 'image_generation');
+            
             $response = $this->sendRequest('POST', $url, $data);
             
-            // Если получили бинарные данные изображения
+            // Проверяем формат ответа
             if (isset($response['binary_data'])) {
+                // Все хорошо, получили бинарные данные изображения
                 return [
                     'success' => true,
                     'image_data' => $response['binary_data']
                 ];
             } else if (isset($response['error'])) {
-                Logger::error('Image Generation API Error: ' . json_encode($response['error']), 'image_generation');
+                // Получили ошибку от API
+                $errorMsg = is_array($response['error']) ? 
+                    json_encode($response['error']) : $response['error'];
+                
+                Logger::error('Image Generation API Error: ' . $errorMsg, 'image_generation');
                 return [
                     'success' => false,
-                    'error' => $response['error']
+                    'error' => $errorMsg
                 ];
             } else {
-                Logger::error('Unknown Image Generation API response: ' . json_encode($response), 'image_generation');
+                // Неизвестный формат ответа
+                $responseStr = is_array($response) ? 
+                    json_encode($response) : (string)$response;
+                
+                Logger::error('Unknown Image Generation API response: ' . $responseStr, 'image_generation');
                 return [
                     'success' => false,
-                    'error' => 'Unknown API response'
+                    'error' => 'Неизвестный ответ API: ' . substr($responseStr, 0, 100)
                 ];
             }
         } catch (Exception $e) {
@@ -72,6 +84,7 @@ class ImageGenerationClient {
             ];
         }
     }
+    
     
     /**
      * Сохранение изображения в файл
@@ -103,57 +116,66 @@ class ImageGenerationClient {
         
         $headers = [
             'Authorization: Bearer ' . $this->apiKey,
-            'Content-Type: application/json'
+            'Content-Type: application/json',
+            'Accept: */*'
         ];
         
-        curl_setopt_array($curl, [
+        $curlOptions = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 60, // Увеличенный таймаут для генерации изображений
+            CURLOPT_TIMEOUT => 120, // Увеличенный таймаут для генерации изображений
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $headers,
-        ]);
+            CURLOPT_HEADER => true // Получаем заголовки для определения типа контента
+        ];
         
         if ($method === 'POST' && !empty($data)) {
-            curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data));
+            $curlOptions[CURLOPT_POSTFIELDS] = json_encode($data);
         }
+        
+        curl_setopt_array($curl, $curlOptions);
         
         $response = curl_exec($curl);
         $err = curl_error($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+        $headerSize = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
         
-        curl_close($curl);
+        Logger::debug("API HTTP Code: $httpCode, Content-Type: $contentType", 'image_generation');
         
         if ($err) {
+            curl_close($curl);
             throw new Exception("cURL Error #:" . $err);
         }
         
+        // Разделяем заголовки и тело ответа
+        $headers = substr($response, 0, $headerSize);
+        $body = substr($response, $headerSize);
+        
+        curl_close($curl);
+        
         // Проверяем, является ли ответ изображением
-        if (strpos($contentType, 'image/') === 0) {
+        if ($httpCode >= 200 && $httpCode < 300 && strpos($contentType, 'image/') === 0) {
             return [
-                'binary_data' => $response
+                'binary_data' => $body
             ];
         }
         
         // Если ответ не является изображением, пробуем декодировать JSON
-        $decodedResponse = json_decode($response, true);
+        $decodedResponse = json_decode($body, true);
         
         if ($httpCode >= 400) {
-            Logger::error('API HTTP Error: ' . $httpCode . ', Response: ' . $response, 'image_generation');
+            Logger::error('API HTTP Error: ' . $httpCode . ', Response: ' . $body, 'image_generation');
             return [
-                'error' => [
-                    'code' => $httpCode,
-                    'message' => isset($decodedResponse['error']) ? 
-                        (is_string($decodedResponse['error']) ? $decodedResponse['error'] : json_encode($decodedResponse['error'])) : 
-                        'HTTP Error: ' . $httpCode
-                ]
+                'error' => isset($decodedResponse['error']) ? 
+                    (is_string($decodedResponse['error']) ? $decodedResponse['error'] : json_encode($decodedResponse['error'])) : 
+                    'HTTP Error: ' . $httpCode
             ];
         }
         
-        return $decodedResponse !== null ? $decodedResponse : ['raw_response' => $response];
+        return $decodedResponse !== null ? $decodedResponse : ['raw_response' => $body];
     }
 }
