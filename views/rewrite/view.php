@@ -66,7 +66,12 @@
                     </ul>
                 
                     <div class="tab-content" id="versionsTabsContent">
-                        <?php foreach ($rewrittenVersions as $version): ?>
+                        <?php foreach ($rewrittenVersions as $version): 
+                            // Фильтруем изображения для текущей версии
+                            $versionImages = array_filter($images, function($img) use ($version) {
+                                return $img['version_number'] == $version['version_number'];
+                            });
+                        ?>
                         <div class="tab-pane fade <?php echo $version['version_number'] == $selectedVersionNumber ? 'show active' : ''; ?>" 
                             id="version-content-<?php echo $version['version_number']; ?>" 
                             role="tabpanel"
@@ -82,107 +87,109 @@
                                     <i class="fas fa-trash"></i> Удалить версию
                                 </button>
                             </div>
-                </div>
+                        </div>
         
-        <div class="row">
-            <div class="col-md-8">
-                <div class="content-box p-3 bg-light rounded mb-3">
-                    <?php echo nl2br(htmlspecialchars($version['content'])); ?>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <?php
-                // Проверяем, есть ли изображения для этой версии реврайта
-                if (!empty($images)): 
-                    $image = $images[0]; // Берем последнее изображение
-                ?>
-                <div class="card mb-3">
-                    <div class="card-body p-2">
-                        <img src="/uploads/images/<?php echo htmlspecialchars($image['image_path']); ?>" 
-                            alt="<?php echo htmlspecialchars($version['title']); ?>" 
-                            class="img-fluid rounded">
-                    </div>
-                    <div class="card-footer small text-muted">
-                        Сгенерировано: <?php echo date('d.m.Y H:i', strtotime($image['created_at'])); ?>
-                    </div>
-                </div>
-                <?php else: ?>
-                <div class="card mb-3">
-                    <div class="card-body p-3 text-center">
-                        <p class="text-muted mb-0">Изображение не сгенерировано</p>
-                        <button type="button" class="btn btn-sm btn-primary mt-2 generate-image-btn" 
-                                data-rewritten-id="<?php echo $mainRewrittenContent['id']; ?>"
-                                data-title="<?php echo htmlspecialchars($version['title']); ?>">
-                            <i class="fas fa-image"></i> Сгенерировать изображение
-                        </button>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <div class="small text-muted">
-            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['created_at'])); ?></div>
-            <div>
-                <strong>Статус:</strong> 
-                <?php
-                switch ($version['status']) {
-                    case 'rewritten':
-                        echo '<span class="badge bg-success">Реврайтнут</span>';
-                        break;
-                    case 'posted':
-                        echo '<span class="badge bg-primary">Опубликован</span>';
-                        break;
-                    default:
-                        echo '<span class="badge bg-secondary">Ожидает</span>';
-                }
-                ?>
-            </div>
-        </div>
-        
-        <!-- Форма для публикации этой версии -->
-        <div class="mt-3 pt-3 border-top">
-            <h6>Опубликовать эту версию</h6>
-            <?php if (empty($accounts)): ?>
-            <div class="alert alert-warning">
-                Нет активных аккаунтов для публикации. Добавьте аккаунты в разделе "Аккаунты".
-            </div>
-            <?php else: ?>
-            <form action="/rewrite/publishPost" method="POST" class="ajax-form">
-                <input type="hidden" name="rewritten_id" value="<?php echo $mainRewrittenContent['id']; ?>">
-                <input type="hidden" name="version_id" value="<?php echo $version['id']; ?>">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <select class="form-select" name="account_id" required>
-                                <option value="">Выберите аккаунт</option>
-                                <?php foreach ($accounts as $account): ?>
-                                <option value="<?php echo $account['id']; ?>">
-                                    <?php echo htmlspecialchars($account['name'] . ' (' . $account['account_type_name'] . ')'); ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="content-box p-3 bg-light rounded mb-3">
+                                    <?php echo nl2br(htmlspecialchars($version['content'])); ?>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <?php
+                                // Проверяем, есть ли изображения для этой версии
+                                if (!empty($versionImages)): 
+                                    $versionImagesArray = array_values($versionImages);
+                                    $image = $versionImagesArray[0]; // Берем первое изображение для версии
+                                ?>
+                                <div class="card mb-3">
+                                    <div class="card-body p-2">
+                                        <img src="/uploads/images/<?php echo htmlspecialchars($image['image_path']); ?>" 
+                                            alt="<?php echo htmlspecialchars($version['title']); ?>" 
+                                            class="img-fluid rounded">
+                                    </div>
+                                    <div class="card-footer small text-muted">
+                                        Сгенерировано: <?php echo date('d.m.Y H:i', strtotime($image['created_at'])); ?>
+                                    </div>
+                                </div>
+                                <?php else: ?>
+                                <div class="card mb-3">
+                                    <div class="card-body p-3 text-center">
+                                        <p class="text-muted mb-0">Изображение не сгенерировано</p>
+                                        <button type="button" class="btn btn-sm btn-primary mt-2 generate-image-btn" 
+                                                data-rewritten-id="<?php echo $mainRewrittenContent['id']; ?>"
+                                                data-version-number="<?php echo $version['version_number']; ?>"
+                                                data-title="<?php echo htmlspecialchars($version['title']); ?>">
+                                            <i class="fas fa-image"></i> Сгенерировать изображение
+                                        </button>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        
+                        <div class="small text-muted">
+                            <div><strong>Дата реврайта:</strong> <?php echo date('d.m.Y H:i', strtotime($version['created_at'])); ?></div>
+                            <div>
+                                <strong>Статус:</strong> 
+                                <?php
+                                switch ($version['status']) {
+                                    case 'rewritten':
+                                        echo '<span class="badge bg-success">Реврайтнут</span>';
+                                        break;
+                                    case 'posted':
+                                        echo '<span class="badge bg-primary">Опубликован</span>';
+                                        break;
+                                    default:
+                                        echo '<span class="badge bg-secondary">Ожидает</span>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <!-- Форма для публикации этой версии -->
+                        <div class="mt-3 pt-3 border-top">
+                            <h6>Опубликовать эту версию</h6>
+                            <?php if (empty($accounts)): ?>
+                            <div class="alert alert-warning">
+                                Нет активных аккаунтов для публикации. Добавьте аккаунты в разделе "Аккаунты".
+                            </div>
+                            <?php else: ?>
+                            <form action="/rewrite/publishPost" method="POST" class="ajax-form">
+                                <input type="hidden" name="rewritten_id" value="<?php echo $mainRewrittenContent['id']; ?>">
+                                <input type="hidden" name="version_id" value="<?php echo $version['id']; ?>">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <select class="form-select" name="account_id" required>
+                                                <option value="">Выберите аккаунт</option>
+                                                <?php foreach ($accounts as $account): ?>
+                                                <option value="<?php echo $account['id']; ?>">
+                                                    <?php echo htmlspecialchars($account['name'] . ' (' . $account['account_type_name'] . ')'); ?>
+                                                </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-paper-plane"></i> Опубликовать
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <?php if (!empty($versionImages)): ?>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" value="1" id="includeImage_<?php echo $version['id']; ?>" name="include_image" checked>
+                                    <label class="form-check-label" for="includeImage_<?php echo $version['id']; ?>">
+                                        Включить изображение в публикацию
+                                    </label>
+                                </div>
+                                <?php endif; ?>
+                            </form>
+                            <?php endif; ?>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-paper-plane"></i> Опубликовать
-                        </button>
-                    </div>
-                </div>
-                
-                <?php if (!empty($images)): ?>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" value="1" id="includeImage_<?php echo $version['id']; ?>" name="include_image" checked>
-                    <label class="form-check-label" for="includeImage_<?php echo $version['id']; ?>">
-                        Включить изображение в публикацию
-                    </label>
-                </div>
-                <?php endif; ?>
-            </form>
-            <?php endif; ?>
-        </div>
-    </div>`
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
@@ -337,10 +344,20 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Обработка кнопки реврайта
     const rewriteBtn = document.querySelector('.rewrite-btn');
-    const rewriteModal = new bootstrap.Modal(document.getElementById('rewriteModal'));
-    
     if (rewriteBtn) {
+        // Добавим переменную для отслеживания состояния запроса
+        let isProcessing = false;
+        
         rewriteBtn.addEventListener('click', function() {
+            // Предотвращаем повторные клики, пока обрабатывается запрос
+            if (isProcessing) {
+                console.log('Запрос уже выполняется, игнорирую повторный клик');
+                return;
+            }
+            
+            // Устанавливаем флаг обработки
+            isProcessing = true;
+            
             const contentId = this.getAttribute('data-content-id');
             
             // Показываем модальное окно с прогрессом
@@ -357,6 +374,9 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
+                // Сбрасываем флаг обработки
+                isProcessing = false;
+                
                 rewriteModal.hide();
                 
                 if (data.success) {
@@ -375,6 +395,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
+                // Сбрасываем флаг обработки
+                isProcessing = false;
+                
                 rewriteModal.hide();
                 showNotification('Произошла ошибка при обработке запроса', 'danger');
                 console.error('Error:', error);
@@ -477,6 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
         generateImageBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {
                 const rewrittenId = this.getAttribute('data-rewritten-id');
+                const versionNumber = this.getAttribute('data-version-number');
                 const title = this.getAttribute('data-title');
                 const buttonText = this.innerHTML;
                 
@@ -496,6 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify({
                         rewritten_id: rewrittenId,
+                        version_number: versionNumber,
                         title: title
                     })
                 })
@@ -547,5 +572,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
 </script>
