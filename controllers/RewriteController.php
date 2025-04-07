@@ -86,7 +86,7 @@ class RewriteController extends BaseController {
         $rewrittenVersions = [];
         if ($mainRewrittenContent) {
             $rewrittenVersions = $this->db->fetchAll("
-                SELECT rv.*, rc.status, rc.is_posted
+                SELECT rv.*, rc.status
                 FROM rewrite_versions rv
                 JOIN rewritten_content rc ON rv.rewritten_id = rc.id
                 WHERE rv.rewritten_id = ? 
@@ -116,6 +116,17 @@ class RewriteController extends BaseController {
             ", [$originalId]);
         }
         
+        // Получаем все изображения для реврайтнутого контента
+        // Важно: мы не фильтруем здесь по версии, это будет делаться в шаблоне
+        $images = [];
+        if ($mainRewrittenContent) {
+            $images = $this->db->fetchAll("
+                SELECT * FROM generated_images 
+                WHERE rewritten_id = ?
+                ORDER BY created_at DESC
+            ", [$mainRewrittenContent['id']]);
+        }
+        
         // Отображаем представление
         $this->render('rewrite/view', [
             'title' => 'Просмотр контента - AutoRewrite',
@@ -127,7 +138,8 @@ class RewriteController extends BaseController {
             'rewrittenVersions' => $rewrittenVersions,
             'selectedVersionNumber' => $selectedVersionNumber,
             'accounts' => $accounts,
-            'posts' => $posts
+            'posts' => $posts,
+            'images' => $images // Передаем все изображения в представление
         ]);
     }
 
@@ -398,13 +410,19 @@ class RewriteController extends BaseController {
             return $this->handleAjaxError('Ошибка при массовом удалении контента: ' . $e->getMessage(), 500);
         }
     }
+
     public function process($id = null) {
         try {
+            // Начинаем запись логов для отладки
+            Logger::debug("Начало процесса реврайта", 'rewrite_debug');
+            
             // Получаем ID из параметров или из JSON тела запроса
             if (empty($id) && $this->isAjax()) {
                 $data = $this->getJsonInput();
                 $id = $data['contentId'] ?? null;
             }
+            
+            Logger::debug("ID контента для реврайта: " . ($id ?? 'не указан'), 'rewrite_debug');
             
             // Проверяем ID
             if (empty($id)) {
@@ -487,77 +505,313 @@ class RewriteController extends BaseController {
                 $rewrittenTitle = $originalContent['title'];
             }
             
-            // Используем транзакцию для обеспечения согласованности данных
+            // Начало транзакции для обеспечения атомарности операций с БД
             $this->db->getConnection()->beginTransaction();
+            Logger::debug("Начата транзакция для реврайта", 'rewrite_debug');
             
             try {
-                // Проверяем, существует ли уже реврайтнутая запись для этого контента
+                // Определяем ID записи реврайтнутого контента
+                $rewrittenId = null;
+                
+                // Проверяем, существует ли уже запись в rewritten_content для этого оригинала
                 $existingRewrite = $this->db->fetchOne("
-                    SELECT * FROM rewritten_content WHERE original_id = ? ORDER BY id DESC LIMIT 1
+                    SELECT * FROM rewritten_content 
+                    WHERE original_id = ?
                 ", [$originalContent['id']]);
                 
-                $rewrittenId = null;
-                $versionNumber = 1;
-                
+                // Если запись существует, используем её ID, иначе создаем новую
                 if ($existingRewrite) {
-                    // Если существует запись, используем её ID и увеличиваем номер версии
+                    Logger::debug("Найдена существующая запись в rewritten_content, ID: " . $existingRewrite['id'], 'rewrite_debug');
                     $rewrittenId = $existingRewrite['id'];
-                    $versionNumber = $this->db->fetchColumn("
-                        SELECT MAX(version_number) FROM rewrite_versions WHERE rewritten_id = ?
-                    ", [$rewrittenId]) + 1;
-                    
-                    // Обновляем основную запись с новым заголовком и контентом
-                    $this->db->update('rewritten_content', [
-                        'title' => $rewrittenTitle,
-                        'content' => $rewrittenContent,
-                        'rewrite_date' => date('Y-m-d H:i:s'),
-                        'version_number' => $versionNumber
-                    ], 'id = ?', [$rewrittenId]);
                 } else {
-                    // Если записи еще нет, создаем новую
+                    // Создаем новую запись в таблице rewritten_content
+                    Logger::debug("Создание новой записи в rewritten_content", 'rewrite_debug');
                     $rewrittenId = $this->db->insert('rewritten_content', [
                         'original_id' => $originalContent['id'],
                         'title' => $rewrittenTitle,
                         'content' => $rewrittenContent,
                         'rewrite_date' => date('Y-m-d H:i:s'),
                         'status' => 'rewritten',
-                        'version_number' => $versionNumber,
                         'is_current_version' => true
                     ]);
+                    
+                    Logger::debug("Создана новая запись в rewritten_content, ID: " . $rewrittenId, 'rewrite_debug');
                 }
                 
-                // Сохраняем версию в отдельной таблице
+                if (!$rewrittenId) {
+                    throw new Exception("Не удалось создать/найти запись в rewritten_content");
+                }
+                
+                // Получаем максимальный номер версии для этого контента
+                $maxVersionNumber = $this->db->fetchColumn("
+                    SELECT MAX(version_number) FROM rewrite_versions WHERE rewritten_id = ?
+                ", [$rewrittenId]);
+                
+                // Увеличиваем номер версии
+                $versionNumber = $maxVersionNumber ? ($maxVersionNumber + 1) : 1;
+                Logger::debug("Новый номер версии: " . $versionNumber, 'rewrite_debug');
+                
+                // Обновляем основную запись с новой информацией
+                Logger::debug("Обновление записи в rewritten_content", 'rewrite_debug');
+                $this->db->update('rewritten_content', [
+                    'title' => $rewrittenTitle,
+                    'content' => $rewrittenContent,
+                    'rewrite_date' => date('Y-m-d H:i:s'),
+                    'version_number' => $versionNumber
+                ], 'id = ?', [$rewrittenId]);
+                
+                // Проверяем, нет ли уже версии с таким номером
+                $existingVersion = $this->db->fetchOne("
+                    SELECT * FROM rewrite_versions 
+                    WHERE rewritten_id = ? AND version_number = ?
+                ", [$rewrittenId, $versionNumber]);
+                
+                if ($existingVersion) {
+                    Logger::warning("Версия {$versionNumber} уже существует для контента {$rewrittenId}. Увеличиваем номер версии.", 'rewrite_debug');
+                    $versionNumber++;
+                }
+                
+                // Создаем новую запись версии в rewrite_versions
+                Logger::debug("Создание новой записи в rewrite_versions с номером {$versionNumber}", 'rewrite_debug');
                 $versionId = $this->db->insert('rewrite_versions', [
                     'rewritten_id' => $rewrittenId,
                     'version_number' => $versionNumber,
                     'title' => $rewrittenTitle,
-                    'content' => $rewrittenContent
+                    'content' => $rewrittenContent,
+                    'created_at' => date('Y-m-d H:i:s')
                 ]);
                 
-                // Увеличиваем счетчик реврайтов, оставляем статус is_processed в 1
-                $rewriteCount = intval($originalContent['rewrite_count']) + 1;
+                if (!$versionId) {
+                    throw new Exception("Не удалось создать запись в rewrite_versions");
+                }
                 
+                // Обновляем счетчик реврайтов в оригинальном контенте
+                Logger::debug("Обновление счетчика реврайтов в original_content", 'rewrite_debug');
+                $rewriteCount = intval($originalContent['rewrite_count']) + 1;
                 $this->db->update('original_content', [
                     'is_processed' => 1,
                     'rewrite_count' => $rewriteCount
                 ], 'id = ?', [$originalContent['id']]);
                 
-                // Логируем успешный реврайт
-                Logger::info("Контент успешно реврайтнут через {$aiProvider}, ID оригинала: {$originalContent['id']}, ID реврайта: {$rewrittenId}, Версия: {$versionNumber}", 'rewrite');
+                // Генерация изображения, если функция включена
+                $generatedImageId = null;
+                if (isset($settings['image_generation_enabled']) && $settings['image_generation_enabled'] == '1') {
+                    try {
+                        Logger::debug("Запуск генерации изображения для версии {$versionNumber}", 'rewrite_debug');
+                        // Получаем шаблон для промпта изображения
+                        $imagePromptTemplate = $settings['image_prompt_template'] ?? 'Create a professional image for: {content}';
+                        
+                        // Создаем промпт для генерации изображения на основе реврайтнутого заголовка
+                        $imagePrompt = str_replace('{content}', $rewrittenTitle . '. ' . substr($rewrittenContent, 0, 500), $imagePromptTemplate);
+                        
+                        // Получаем API ключ для генерации изображений
+                        $imageApiKey = $settings['huggingface_api_key'] ?? '';
+                        if (!empty($imageApiKey)) {
+                            // Инициализируем клиент для генерации изображений
+                            require_once UTILS_PATH . '/ImageGenerationClient.php';
+                            require_once UTILS_PATH . '/ImageStorageManager.php';
+                            
+                            $imageModel = $settings['image_generation_model'] ?? 'stabilityai/stable-diffusion-3-medium-diffusers';
+                            $imageClient = new ImageGenerationClient($imageApiKey, $imageModel);
+                            $imageStorageManager = new ImageStorageManager($this->db);
+                            
+                            // Получаем настройки размера изображения
+                            $imageWidth = isset($settings['image_width']) ? (int)$settings['image_width'] : 512;
+                            $imageHeight = isset($settings['image_height']) ? (int)$settings['image_height'] : 512;
+                            
+                            // Опции для генерации изображения
+                            $imageOptions = [
+                                'width' => $imageWidth,
+                                'height' => $imageHeight,
+                                'guidance_scale' => 7.5,
+                                'num_inference_steps' => 30
+                            ];
+                            
+                            Logger::info("Генерация изображения для контента ID: {$rewrittenId}, версия: {$versionNumber}, промпт: {$imagePrompt}", 'rewrite');
+                            
+                            // Генерируем изображение
+                            $imageResult = $imageClient->generateImage($imagePrompt, $imageOptions);
+                            
+                            if ($imageResult['success'] && isset($imageResult['image_data'])) {
+                                // Сохраняем изображение
+                                $generatedImageId = $imageStorageManager->saveGeneratedImage(
+                                    $rewrittenId,
+                                    $imageResult['image_data'],
+                                    $imagePrompt,
+                                    $imageWidth,
+                                    $imageHeight,
+                                    $versionNumber  // Передаем номер версии
+                                );
+                                
+                                if ($generatedImageId) {
+                                    Logger::info("Изображение успешно сгенерировано и сохранено с ID: {$generatedImageId}", 'rewrite');
+                                } else {
+                                    Logger::error("Не удалось сохранить сгенерированное изображение", 'rewrite');
+                                }
+                            } else {
+                                Logger::error("Ошибка при генерации изображения: " . ($imageResult['error'] ?? 'Неизвестная ошибка'), 'rewrite');
+                            }
+                        } else {
+                            Logger::warning("API ключ для генерации изображений не настроен", 'rewrite');
+                        }
+                    } catch (Exception $e) {
+                        Logger::error("Ошибка при генерации изображения: " . $e->getMessage(), 'rewrite');
+                    }
+                }
                 
                 // Фиксируем транзакцию
                 $this->db->getConnection()->commit();
+                Logger::debug("Транзакция успешно зафиксирована", 'rewrite_debug');
                 
                 // Возвращаем на страницу с оригинальным контентом и его версиями
                 return $this->handleSuccess('Контент успешно реврайтнут', '/rewrite/view/' . $originalContent['id'] . '?version=' . $versionNumber);
             } catch (Exception $e) {
                 // Отменяем транзакцию в случае исключения
                 $this->db->getConnection()->rollBack();
-                throw $e; // Перебрасываем исключение для обработки во внешнем блоке try-catch
+                Logger::error("Ошибка в транзакции, откат: " . $e->getMessage(), 'rewrite_debug');
+                throw $e;
             }
         } catch (Exception $e) {
             Logger::error('Ошибка при реврайте контента: ' . $e->getMessage(), 'rewrite');
             return $this->handleAjaxError('Ошибка при реврайте контента: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /*
+     * Метод для генерации изображения на основе реврайтнутого контента
+     */
+    public function generateImage() {
+        // Проверяем, что запрос отправлен методом POST
+        if (!$this->isMethod('POST')) {
+            return $this->handleAjaxError('Метод не поддерживается', 405);
+        }
+        
+        try {
+            // Получаем данные из JSON тела запроса
+            $data = $this->getJsonInput();
+            $rewrittenId = $data['rewritten_id'] ?? null;
+            $title = $data['title'] ?? '';
+            $content = $data['content'] ?? '';
+            
+            // Важно: обрабатываем параметр version_number!
+            $versionNumber = $data['version_number'] ?? null;
+            
+            // Проверяем необходимые параметры
+            if (empty($rewrittenId)) {
+                return $this->handleAjaxError('Не указан ID контента', 400);
+            }
+            
+            // Если номер версии не указан, пытаемся его получить
+            if ($versionNumber === null) {
+                // Для указанной версии пытаемся получить номер версии из БД
+                $versionNumber = $this->db->fetchColumn("
+                    SELECT MAX(version_number) FROM rewrite_versions 
+                    WHERE rewritten_id = ?
+                ", [$rewrittenId]);
+                
+                if (!$versionNumber) {
+                    return $this->handleAjaxError('Не удалось определить номер версии', 400);
+                }
+            }
+            
+            // Если контент не передан, получаем его из базы данных
+            if (empty($content)) {
+                // Получаем контент из указанной версии
+                $versionContent = $this->db->fetchOne("
+                    SELECT rv.title, rv.content
+                    FROM rewrite_versions rv
+                    WHERE rv.rewritten_id = ? AND rv.version_number = ?
+                ", [$rewrittenId, $versionNumber]);
+                
+                if (!$versionContent) {
+                    return $this->handleAjaxError('Контент не найден', 404);
+                }
+                
+                $title = $versionContent['title'];
+                $content = $versionContent['content'];
+            }
+            
+            // Получаем настройки генерации изображений
+            $settings = $this->getSettings();
+            
+            // Проверяем наличие API ключа
+            $huggingfaceApiKey = $settings['huggingface_api_key'] ?? '';
+            if (empty($huggingfaceApiKey)) {
+                return $this->handleAjaxError('API ключ для генерации изображений не настроен');
+            }
+            
+            // Получаем шаблон для промпта изображения
+            $imagePromptTemplate = $settings['image_prompt_template'] ?? 'Create a professional image for: {content}';
+            
+            // Создаем промпт для генерации изображения
+            $imagePrompt = str_replace('{content}', $title . '. ' . substr($content, 0, 500), $imagePromptTemplate);
+            
+            // Получаем модель для генерации изображений
+            $imageModel = $settings['image_generation_model'] ?? 'stabilityai/stable-diffusion-3-medium-diffusers';
+            
+            // Инициализируем клиент для генерации изображений
+            require_once UTILS_PATH . '/ImageGenerationClient.php';
+            require_once UTILS_PATH . '/ImageStorageManager.php';
+            
+            $imageClient = new ImageGenerationClient($huggingfaceApiKey, $imageModel);
+            $imageStorageManager = new ImageStorageManager($this->db);
+            
+            // Получаем настройки размера изображения
+            $imageWidth = isset($settings['image_width']) ? (int)$settings['image_width'] : 512;
+            $imageHeight = isset($settings['image_height']) ? (int)$settings['image_height'] : 512;
+            
+            // Опции для генерации изображения
+            $imageOptions = [
+                'width' => $imageWidth,
+                'height' => $imageHeight,
+                'guidance_scale' => 7.5,
+                'num_inference_steps' => 30
+            ];
+            
+            Logger::info("Генерация изображения для контента ID: {$rewrittenId}, версия: {$versionNumber}, промпт: {$imagePrompt}", 'image_gen');
+            
+            // Генерируем изображение
+            $imageResult = $imageClient->generateImage($imagePrompt, $imageOptions);
+            
+            if (!$imageResult['success']) {
+                return $this->handleAjaxError('Ошибка при генерации изображения: ' . ($imageResult['error'] ?? 'неизвестная ошибка'));
+            }
+            
+            // Сохраняем изображение, ОБЯЗАТЕЛЬНО передавая номер версии
+            $generatedImageId = $imageStorageManager->saveGeneratedImage(
+                $rewrittenId,
+                $imageResult['image_data'],
+                $imagePrompt,
+                $imageWidth,
+                $imageHeight,
+                $versionNumber  // Передаем номер версии
+            );
+            
+            if (!$generatedImageId) {
+                return $this->handleAjaxError('Не удалось сохранить сгенерированное изображение');
+            }
+            
+            // Получаем информацию о сохраненном изображении
+            $image = $imageStorageManager->getImageById($generatedImageId);
+            
+            if (!$image) {
+                return $this->handleAjaxError('Не удалось получить информацию о сгенерированном изображении');
+            }
+            
+            // Формируем URL изображения
+            $imageUrl = $imageStorageManager->getImageUrl($image['image_path']);
+            
+            // Возвращаем успешный результат
+            return $this->jsonResponse([
+                'success' => true,
+                'message' => 'Изображение успешно сгенерировано',
+                'image_id' => $generatedImageId,
+                'image_url' => $imageUrl,
+                'created_at' => $image['created_at']
+            ]);
+        } catch (Exception $e) {
+            Logger::error('Ошибка при генерации изображения: ' . $e->getMessage(), 'image_gen');
+            return $this->handleAjaxError('Ошибка при генерации изображения: ' . $e->getMessage());
         }
     }
     

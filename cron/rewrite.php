@@ -1,6 +1,6 @@
 <?php
 /**
- * Скрипт для автоматического реврайта контента
+ * Скрипт для автоматического реврайта контента и генерации изображений
  * 
  * Запускается через cron для регулярного реврайта собранного контента
  */
@@ -8,6 +8,8 @@
 // Подключение необходимых файлов
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../utils/GeminiApiClient.php';
+require_once __DIR__ . '/../utils/ImageGenerationClient.php';
+require_once __DIR__ . '/../utils/ImageStorageManager.php';
 require_once __DIR__ . '/../utils/Logger.php';
 
 // Инициализация логгера
@@ -61,6 +63,26 @@ try {
     
     // Получение максимального количества потоков для реврайта
     $maxThreads = isset($settings['max_rewrite_threads']) ? (int)$settings['max_rewrite_threads'] : 2;
+    
+    // Проверяем, включена ли генерация изображений
+    $imageGenerationEnabled = isset($settings['image_generation_enabled']) && $settings['image_generation_enabled'] == '1';
+    
+    // Инициализация клиента для генерации изображений, если функция включена
+    $imageGenerationClient = null;
+    $imageStorageManager = null;
+    
+    if ($imageGenerationEnabled) {
+        $huggingfaceApiKey = $settings['huggingface_api_key'] ?? '';
+        if (empty($huggingfaceApiKey)) {
+            Logger::warning('Hugging Face API key not configured, image generation will be skipped', 'rewrite_cron');
+            $imageGenerationEnabled = false;
+        } else {
+            $imageGenerationModel = $settings['image_generation_model'] ?? 'stabilityai/stable-diffusion-3-medium-diffusers';
+            $imageGenerationClient = new ImageGenerationClient($huggingfaceApiKey, $imageGenerationModel);
+            $imageStorageManager = new ImageStorageManager($db);
+            Logger::info('Image generation is enabled', 'rewrite_cron');
+        }
+    }
     
     // Получение контента для реврайта
     $content = $db->fetchAll("
@@ -150,9 +172,58 @@ try {
                 
                 Logger::info('Content rewritten successfully, ID: ' . $rewrittenId, 'rewrite_cron');
                 
+                // Генерация изображения, если функция включена
+                if ($imageGenerationEnabled && $imageGenerationClient && $imageStorageManager) {
+                    try {
+                        // Получаем шаблон для промпта изображения
+                        $imagePromptTemplate = $settings['image_prompt_template'] ?? 'Create a professional, high-quality image that represents the following content: {content}';
+                        
+                        // Создаем промпт для генерации изображения на основе реврайтнутого контента
+                        $imagePrompt = str_replace('{content}', $rewrittenTitle . '. ' . substr($rewrittenDescription, 0, 500), $imagePromptTemplate);
+                        
+                        // Получаем настройки размера изображения
+                        $imageWidth = isset($settings['image_width']) ? (int)$settings['image_width'] : 512;
+                        $imageHeight = isset($settings['image_height']) ? (int)$settings['image_height'] : 512;
+                        
+                        // Опции для генерации изображения
+                        $imageOptions = [
+                            'width' => $imageWidth,
+                            'height' => $imageHeight,
+                            'guidance_scale' => 7.5,
+                            'num_inference_steps' => 30
+                        ];
+                        
+                        Logger::info('Generating image for content ID: ' . $rewrittenId, 'rewrite_cron');
+                        
+                        // Генерируем изображение
+                        $imageResult = $imageGenerationClient->generateImage($imagePrompt, $imageOptions);
+                        
+                        if ($imageResult['success'] && isset($imageResult['image_data'])) {
+                            // Сохраняем изображение
+                            $imageId = $imageStorageManager->saveGeneratedImage(
+                                $rewrittenId,
+                                $imageResult['image_data'],
+                                $imagePrompt,
+                                $imageWidth,
+                                $imageHeight
+                            );
+                            
+                            if ($imageId) {
+                                Logger::info('Image generated and saved successfully, ID: ' . $imageId, 'rewrite_cron');
+                            } else {
+                                Logger::error('Failed to save generated image', 'rewrite_cron');
+                            }
+                        } else {
+                            Logger::error('Image generation failed: ' . ($imageResult['error'] ?? 'Unknown error'), 'rewrite_cron');
+                        }
+                    } catch (Exception $e) {
+                        Logger::error('Error during image generation: ' . $e->getMessage(), 'rewrite_cron');
+                    }
+                }
+                
                 // Автоматический постинг, если включен
                 if (isset($settings['auto_posting']) && $settings['auto_posting'] == '1') {
-                    $this->schedulePostingIfEnabled($rewrittenId);
+                    schedulePostingIfEnabled($rewrittenId);
                 }
             } else {
                 Logger::error('Failed to save rewritten content', 'rewrite_cron');

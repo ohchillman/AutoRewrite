@@ -67,6 +67,15 @@ $router->addRoute('', 'DashboardController', 'index');
 $router->addRoute('settings', 'SettingsController', 'index');
 $router->addRoute('settings/save', 'SettingsController', 'save');
 
+// Маршруты для настроек генерации изображений
+$router->addRoute('image-settings', 'ImageSettingsController', 'index');
+$router->addRoute('image-settings/save', 'ImageSettingsController', 'save');
+$router->addRoute('image-settings/clearTemp', 'ImageSettingsController', 'clearTempImages');
+
+// Маршруты для тестирования генерации изображений
+$router->addRoute('image-test', 'ImageTestController', 'index');
+$router->addRoute('image-test/generate', 'ImageTestController', 'generate');
+
 $router->addRoute('proxies', 'ProxiesController', 'index');
 $router->addRoute('proxies/add', 'ProxiesController', 'add');
 $router->addRoute('proxies/delete', 'ProxiesController', 'delete');
@@ -84,6 +93,7 @@ $router->addRoute('rewrite/process', 'RewriteController', 'process');
 $router->addRoute('rewrite/post', 'RewriteController', 'publishPost');
 $router->addRoute('rewrite/delete', 'RewriteController', 'delete');
 $router->addRoute('rewrite/deleteVersion', 'RewriteController', 'deleteVersion');
+$router->addRoute('rewrite/generateImage', 'RewriteController', 'generateImage');
 
 $router->addRoute('parsing', 'ParsingController', 'index');
 $router->addRoute('parsing/add', 'ParsingController', 'add');
@@ -91,6 +101,7 @@ $router->addRoute('parsing/edit', 'ParsingController', 'edit');
 $router->addRoute('parsing/delete', 'ParsingController', 'delete');
 $router->addRoute('parsing/toggle', 'ParsingController', 'toggle');
 $router->addRoute('parsing/parse', 'ParsingController', 'parse');
+
 
 
 // Обрабатываем запрос
