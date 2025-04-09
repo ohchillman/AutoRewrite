@@ -17,19 +17,100 @@ class TwitterApiClient {
     private $connection;
     
     /**
+     * @var array Данные прокси
+     */
+    private $proxy = null;
+    
+    /**
+     * @var Logger Экземпляр класса для логирования
+     */
+    private $logger = null;
+    
+    /**
      * Конструктор класса
      * 
      * @param string $apiKey API ключ (consumer key)
      * @param string $apiSecret API секрет (consumer secret)
      * @param string $accessToken Токен доступа
      * @param string $accessTokenSecret Секрет токена доступа
+     * @param Logger $logger Экземпляр класса для логирования (опционально)
      */
-    public function __construct($apiKey, $apiSecret, $accessToken, $accessTokenSecret) {
-        // Инициализируем соединение с Twitter API через библиотеку
-        $this->connection = new TwitterOAuth($apiKey, $apiSecret, $accessToken, $accessTokenSecret);
+    public function __construct($apiKey, $apiSecret, $accessToken, $accessTokenSecret, $logger = null) {
+        // Инициализируем логгер
+        $this->logger = $logger ?: new Logger('twitter_api_client');
         
-        // Устанавливаем версию API
-        $this->connection->setApiVersion('2');
+        // Сохраняем учетные данные
+        $this->apiKey = $apiKey;
+        $this->apiSecret = $apiSecret;
+        $this->accessToken = $accessToken;
+        $this->accessTokenSecret = $accessTokenSecret;
+        
+        // Инициализация соединения будет выполнена при первом запросе
+        // для возможности настройки прокси перед соединением
+    }
+    
+    /**
+     * Установка прокси для API клиента
+     * 
+     * @param array $proxy Данные прокси
+     * @return self
+     */
+    public function setProxy($proxy) {
+        $this->proxy = $proxy;
+        if ($this->logger) {
+            $this->logger->debug("Proxy set: {$proxy['ip']}:{$proxy['port']}");
+        }
+        return $this;
+    }
+    
+    /**
+     * Инициализация соединения с Twitter API
+     * 
+     * @return TwitterOAuth Экземпляр клиента TwitterOAuth
+     */
+    private function initConnection() {
+        if (!$this->connection) {
+            if ($this->logger) {
+                $this->logger->debug("Initializing Twitter connection");
+            }
+            
+            // Создаем экземпляр TwitterOAuth
+            $this->connection = new TwitterOAuth(
+                $this->apiKey,
+                $this->apiSecret,
+                $this->accessToken,
+                $this->accessTokenSecret
+            );
+            
+            // Устанавливаем версию API
+            $this->connection->setApiVersion('2');
+            
+            // Если настроен прокси, применяем его
+            if ($this->proxy) {
+                $proxyString = "{$this->proxy['protocol']}://{$this->proxy['ip']}:{$this->proxy['port']}";
+                
+                // Настраиваем прокси для TwitterOAuth
+                $this->connection->setProxy([
+                    'CURLOPT_PROXY' => $proxyString,
+                    'CURLOPT_HTTPPROXYTUNNEL' => true,
+                    'CURLOPT_CONNECTTIMEOUT' => 30
+                ]);
+                
+                // Если есть аутентификация, добавляем ее
+                if (!empty($this->proxy['username']) && !empty($this->proxy['password'])) {
+                    $proxyAuth = "{$this->proxy['username']}:{$this->proxy['password']}";
+                    $this->connection->setProxy([
+                        'CURLOPT_PROXYUSERPWD' => $proxyAuth
+                    ]);
+                }
+                
+                if ($this->logger) {
+                    $this->logger->debug("Twitter connection configured with proxy: $proxyString");
+                }
+            }
+        }
+        
+        return $this->connection;
     }
     
     /**
@@ -39,26 +120,48 @@ class TwitterApiClient {
      * @return array Ответ от API
      */
     public function postTweet($content) {
+        if ($this->logger) {
+            $this->logger->debug("Posting tweet: " . substr($content, 0, 50) . "...");
+        }
+        
         try {
+            // Инициализируем соединение
+            $connection = $this->initConnection();
+            
             // Данные для отправки
             $data = [
                 'text' => $content
             ];
             
             // Отправка запроса через библиотеку TwitterOAuth
-            $response = $this->connection->post('tweets', $data, true);
+            $response = $connection->post('tweets', $data, true);
             
             // Проверяем наличие ошибок
-            if ($this->connection->getLastHttpCode() != 201) {
+            if ($connection->getLastHttpCode() != 201) {
+                $errorMessage = isset($response->detail) ? $response->detail : 'Unknown error';
+                if ($this->logger) {
+                    $this->logger->error("Twitter API error: $errorMessage");
+                }
+                
                 return [
-                    'error' => isset($response->detail) ? $response->detail : 'Unknown error',
-                    'code' => $this->connection->getLastHttpCode()
+                    'error' => $errorMessage,
+                    'code' => $connection->getLastHttpCode()
                 ];
+            }
+            
+            // Логируем успешную публикацию
+            $tweetId = isset($response->data->id) ? $response->data->id : 'unknown';
+            if ($this->logger) {
+                $this->logger->info("Tweet posted successfully, ID: $tweetId");
             }
             
             // Преобразуем объект в массив для совместимости с существующим кодом
             return json_decode(json_encode($response), true);
         } catch (\Exception $e) {
+            if ($this->logger) {
+                $this->logger->error("Exception during tweet posting: " . $e->getMessage());
+            }
+            
             return [
                 'error' => $e->getMessage()
             ];
@@ -74,6 +177,9 @@ class TwitterApiClient {
      */
     public function getTimeline($username, $count = 10) {
         try {
+            // Инициализируем соединение
+            $connection = $this->initConnection();
+            
             // Получение ID пользователя по имени
             $userId = $this->getUserIdByUsername($username);
             
@@ -88,19 +194,28 @@ class TwitterApiClient {
             ];
             
             // Отправка запроса через библиотеку TwitterOAuth
-            $response = $this->connection->get("users/{$userId}/tweets", $params);
+            $response = $connection->get("users/{$userId}/tweets", $params);
             
             // Проверяем наличие ошибок
-            if ($this->connection->getLastHttpCode() != 200) {
+            if ($connection->getLastHttpCode() != 200) {
+                $errorMessage = isset($response->detail) ? $response->detail : 'Unknown error';
+                if ($this->logger) {
+                    $this->logger->error("Twitter API error: $errorMessage");
+                }
+                
                 return [
-                    'error' => isset($response->detail) ? $response->detail : 'Unknown error',
-                    'code' => $this->connection->getLastHttpCode()
+                    'error' => $errorMessage,
+                    'code' => $connection->getLastHttpCode()
                 ];
             }
             
             // Преобразуем объект в массив для совместимости с существующим кодом
             return json_decode(json_encode($response), true);
         } catch (\Exception $e) {
+            if ($this->logger) {
+                $this->logger->error("Exception during timeline retrieval: " . $e->getMessage());
+            }
+            
             return [
                 'error' => $e->getMessage()
             ];
@@ -115,11 +230,14 @@ class TwitterApiClient {
      */
     private function getUserIdByUsername($username) {
         try {
+            // Инициализируем соединение
+            $connection = $this->initConnection();
+            
             // Отправка запроса через библиотеку TwitterOAuth
-            $response = $this->connection->get("users/by/username/{$username}");
+            $response = $connection->get("users/by/username/{$username}");
             
             // Проверяем наличие ошибок
-            if ($this->connection->getLastHttpCode() != 200) {
+            if ($connection->getLastHttpCode() != 200) {
                 return null;
             }
             
@@ -130,6 +248,9 @@ class TwitterApiClient {
             
             return null;
         } catch (\Exception $e) {
+            if ($this->logger) {
+                $this->logger->error("Exception during user ID retrieval: " . $e->getMessage());
+            }
             return null;
         }
     }
