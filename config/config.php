@@ -4,7 +4,7 @@
  */
 
 // Режим отладки (true для разработки, false для продакшена)
-define('DEBUG', true);
+define('DEBUG', false);
 
 // Настройки базы данных
 define('DB_HOST', getenv('DB_HOST') ? getenv('DB_HOST') : 'localhost');
