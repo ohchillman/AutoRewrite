@@ -11,7 +11,7 @@ define('CLI_MODE', true);
 require_once __DIR__ . '/config/config.php';
 
 // Явно подключаем класс Database
-require_once __DIR__ . '/utils/Database.php';
+require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/utils/Logger.php';
 require_once __DIR__ . '/utils/proxy/ProxyManager.php';
 require_once __DIR__ . '/utils/proxy/SocialMediaClientFactory.php';
