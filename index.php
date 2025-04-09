@@ -70,7 +70,7 @@ $router->addRoute('settings/save', 'SettingsController', 'save');
 // Маршруты для настроек генерации изображений
 $router->addRoute('image-settings', 'ImageSettingsController', 'index');
 $router->addRoute('image-settings/save', 'ImageSettingsController', 'save');
-$router->addRoute('image-settings/clearTemp', 'ImageSettingsController', 'clearTempImages');
+$router->addRoute('image-settings/clearTempImages', 'ImageSettingsController', 'clearTempImages');
 
 // Маршруты для тестирования генерации изображений
 $router->addRoute('image-test', 'ImageTestController', 'index');
@@ -85,7 +85,7 @@ $router->addRoute('proxies/changeIp', 'ProxiesController', 'changeIp');
 $router->addRoute('proxies/edit', 'ProxiesController', 'edit');
 
 $router->addRoute('accounts', 'AccountsController', 'index');
-$router->addRoute('test', 'TestController', 'index');
+$router->addRoute('accounts/updateProxy', 'AccountsController', 'updateProxy');
 
 $router->addRoute('rewrite', 'RewriteController', 'index');
 $router->addRoute('rewrite/view', 'RewriteController', 'view');

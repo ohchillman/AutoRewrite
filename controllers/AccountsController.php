@@ -348,6 +348,42 @@ class AccountsController extends BaseController {
        ]);
    }
    
+   public function updateProxy() {
+    try {
+        // Проверяем, что запрос отправлен методом POST
+        if (!$this->isMethod('POST')) {
+            return $this->handleAjaxError('Метод не поддерживается', 405);
+        }
+        
+        // Получаем данные из JSON тела запроса
+        $data = $this->getJsonInput();
+        $accountId = $data['accountId'] ?? null;
+        $proxyId = $data['proxyId'] ?? '';
+        
+        // Проверяем ID аккаунта
+        if (empty($accountId)) {
+            return $this->handleAjaxError('ID аккаунта не указан', 400);
+        }
+        
+        // Обновляем прокси для аккаунта
+        $result = $this->db->update('accounts', [
+            'proxy_id' => $proxyId ?: null
+        ], 'id = ?', [$accountId]);
+        
+        if ($result !== false) {
+            return $this->jsonResponse([
+                'success' => true,
+                'message' => 'Прокси успешно обновлен'
+            ]);
+        } else {
+            return $this->handleAjaxError('Ошибка при обновлении прокси');
+        }
+    } catch (Exception $e) {
+        Logger::error('Ошибка при обновлении прокси: ' . $e->getMessage(), 'accounts');
+        return $this->handleAjaxError('Ошибка при обновлении прокси: ' . $e->getMessage(), 500);
+    }
+}
+
    /**
     * Получение всех аккаунтов с информацией о типе
     * 

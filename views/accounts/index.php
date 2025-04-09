@@ -243,21 +243,50 @@
                                 <td><?php echo htmlspecialchars($account['name']); ?></td>
                                 <td><?php echo htmlspecialchars($account['account_type_name']); ?></td>
                                 <td><?php echo htmlspecialchars($account['username'] ?: '-'); ?></td>
-                                <td>
-                                    <?php if (!empty($account['proxy_ip'])): ?>
-                                        <?php if (isset($account['proxy_status']) && $account['proxy_status'] == 'working'): ?>
-                                            <span class="badge bg-success">
-                                                <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="badge bg-danger">
-                                                <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
-                                            </span>
-                                        <?php endif; ?>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                </td>
+<td>
+    <div class="input-group input-group-sm">
+        <select class="form-select form-select-sm proxy-select" data-account-id="<?php echo $account['id']; ?>">
+            <option value="">Без прокси</option>
+            <?php foreach ($proxies as $proxy): ?>
+            <option value="<?php echo $proxy['id']; ?>" 
+                <?php echo (!empty($account['proxy_id']) && $account['proxy_id'] == $proxy['id']) ? 'selected' : ''; ?>>
+                <?php if(isset($proxy['status'])): ?>
+                    <?php if($proxy['status'] == 'working'): ?>
+                        🟢
+                    <?php elseif($proxy['status'] == 'failed'): ?>
+                        🔴
+                    <?php else: ?>
+                        🟡
+                    <?php endif; ?>
+                <?php else: ?>
+                    ⚪
+                <?php endif; ?>
+                <?php echo htmlspecialchars($proxy['ip'] . ':' . $proxy['port']); ?>
+            </option>
+            <?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm save-proxy-btn" type="button" data-account-id="<?php echo $account['id']; ?>">
+            <i class="fas fa-save"></i>
+        </button>
+    </div>
+    <div class="proxy-status-message-<?php echo $account['id']; ?> mt-1 small"></div>
+    
+    <!-- <?php if (!empty($account['proxy_id']) && !empty($account['proxy_ip'])): ?>
+        <div class="mt-1 small">
+            <?php if(isset($account['proxy_status'])): ?>
+                <?php if($account['proxy_status'] == 'working'): ?>
+                    <span class="badge bg-success">Работает</span>
+                <?php elseif($account['proxy_status'] == 'failed'): ?>
+                    <span class="badge bg-danger">Не работает</span>
+                <?php else: ?>
+                    <span class="badge bg-warning">Не проверен</span>
+                <?php endif; ?>
+            <?php else: ?>
+                <span class="badge bg-secondary">Статус неизвестен</span>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?> -->
+</td>
                                 <td>
                                     <span class="badge <?php echo $account['is_active'] ? 'bg-success' : 'bg-danger'; ?>">
                                         <?php echo $account['is_active'] ? 'Активен' : 'Неактивен'; ?>
@@ -687,5 +716,57 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+});
+// Обработка изменения прокси через выпадающий список
+document.querySelectorAll('.save-proxy-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const accountId = this.getAttribute('data-account-id');
+        const select = document.querySelector(`.proxy-select[data-account-id="${accountId}"]`);
+        const proxyId = select.value;
+        const statusMessage = document.querySelector(`.proxy-status-message-${accountId}`);
+        
+        // Показываем индикатор загрузки
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        statusMessage.innerHTML = '<span class="text-info">Обновление...</span>';
+        
+        // Отправляем запрос на обновление прокси
+        fetch('/accounts/updateProxy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                accountId: accountId,
+                proxyId: proxyId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Восстанавливаем кнопку
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-save"></i>';
+            
+            // Показываем сообщение
+            if (data.success) {
+                statusMessage.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Прокси обновлен</span>';
+                setTimeout(() => {
+                    statusMessage.innerHTML = '';
+                }, 3000);
+            } else {
+                statusMessage.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> ' + data.message + '</span>';
+            }
+        })
+        .catch(error => {
+            // Восстанавливаем кнопку
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-save"></i>';
+            
+            // Показываем сообщение об ошибке
+            statusMessage.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Ошибка при обновлении</span>';
+            console.error('Error updating proxy:', error);
+        });
+    });
 });
 </script>
