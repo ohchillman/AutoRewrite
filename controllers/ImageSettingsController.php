@@ -66,6 +66,50 @@ class ImageSettingsController extends BaseController {
     }
 
     /**
+     * Метод для очистки папки с изображениями
+     */
+    public function clearImages() {
+        try {
+            // Путь к папке с изображениями
+            $imagesDir = __DIR__ . '/../uploads/images/';
+            
+            // Проверяем существование директории
+            if (!file_exists($imagesDir)) {
+                return $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Папка с изображениями не существует или уже пуста'
+                ]);
+            }
+            
+            // Получаем список файлов из директории
+            $files = glob($imagesDir . '*.{jpg,jpeg,png,gif,webp}', GLOB_BRACE);
+            $countDeleted = 0;
+            
+            // Удаляем каждый файл
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    if (unlink($file)) {
+                        $countDeleted++;
+                    }
+                }
+            }
+            
+            Logger::info("Удалено {$countDeleted} изображений", 'image_settings');
+            
+            return $this->jsonResponse([
+                'success' => true,
+                'message' => "Успешно удалено {$countDeleted} изображений"
+            ]);
+        } catch (Exception $e) {
+            Logger::error('Ошибка при очистке изображений: ' . $e->getMessage(), 'image_settings');
+            return $this->jsonResponse([
+                'success' => false,
+                'message' => 'Ошибка при очистке папки: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Сохранение настроек генерации изображений
      */
     public function save() {

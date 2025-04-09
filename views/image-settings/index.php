@@ -119,6 +119,18 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5>Управление сохраненными изображениями</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>Сохраненные изображения находятся в директории <code>/uploads/images/</code>.</p>
+                                    <button type="button" id="clearImagesBtn" class="btn btn-danger">
+                                        <i class="fas fa-trash"></i> Очистить папку с сохраненными изображениями
+                                    </button>
+                                </div>
+                            </div>
                             
                             <div class="s3-storage-settings" <?php echo ($settings['image_storage_provider'] ?? 'local') != 's3' ? 'style="display:none;"' : ''; ?>>
                                 <div class="row">
@@ -188,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const midjourneySettings = document.querySelector('.midjourney-settings');
     
     const clearTempImagesBtn = document.getElementById('clearTempImagesBtn');
+    const clearImagesBtn = document.getElementById('clearImagesBtn');
 
     if (imageApiProviderSelect) {
         imageApiProviderSelect.addEventListener('change', function() {
@@ -284,6 +297,73 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Восстанавливаем кнопку
                     clearTempImagesBtn.disabled = false;
                     clearTempImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с временными изображениями';
+                });
+            }
+        });
+    }
+
+    if (clearImagesBtn) {
+        clearImagesBtn.addEventListener('click', function() {
+            if (confirm('Вы уверены, что хотите удалить все сохраненные изображения? Это действие нельзя отменить.')) {
+                // Отключаем кнопку и показываем индикатор загрузки
+                clearImagesBtn.disabled = true;
+                clearImagesBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Очистка...';
+                
+                // Отправляем запрос на очистку
+                fetch('/image-settings/clearImages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+                    
+                    // Показываем сообщение
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show`;
+                    alertDiv.role = 'alert';
+                    alertDiv.innerHTML = `
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Находим контейнер
+                    const container = document.querySelector('.container') || document.body;
+                    
+                    // Вставляем уведомление в начало контейнера
+                    container.insertBefore(alertDiv, container.firstChild);
+                    
+                    // Восстанавливаем кнопку
+                    clearImagesBtn.disabled = false;
+                    clearImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с сохраненными изображениями';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    
+                    // Показываем сообщение об ошибке
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    alertDiv.role = 'alert';
+                    alertDiv.innerHTML = `
+                        Ошибка при очистке папки: ${error.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Находим контейнер
+                    const container = document.querySelector('.container') || document.body;
+                    
+                    // Вставляем уведомление в начало контейнера
+                    container.insertBefore(alertDiv, container.firstChild);
+                    
+                    // Восстанавливаем кнопку
+                    clearImagesBtn.disabled = false;
+                    clearImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с сохраненными изображениями';
                 });
             }
         });
