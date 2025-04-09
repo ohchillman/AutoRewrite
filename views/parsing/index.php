@@ -1,5 +1,8 @@
 <div class="row">
     <div class="col-md-12">
+        <!-- Контейнер для toast-уведомлений -->
+        <div class="toast-container position-fixed top-0 end-0 p-3"></div>
+        
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Добавить новый источник</h5>
@@ -453,6 +456,54 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (sourceType === 'blog') {
                 document.querySelector('.blog-fields').classList.remove('d-none');
             }
+        });
+    }
+    
+    // Функция для отображения toast-уведомлений
+    function showNotification(message, type) {
+        const toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) return;
+        
+        // Создаем уникальный ID для toast
+        const toastId = 'toast-' + Date.now();
+        
+        // Определяем цвет заголовка в зависимости от типа
+        const headerClass = type === 'success' ? 'bg-success' : 
+                          type === 'warning' ? 'bg-warning' : 'bg-danger';
+        
+        // Создаем элемент toast
+        const toastDiv = document.createElement('div');
+        toastDiv.id = toastId;
+        toastDiv.className = 'toast fade show';
+        toastDiv.setAttribute('role', 'alert');
+        toastDiv.setAttribute('aria-live', 'assertive');
+        toastDiv.setAttribute('aria-atomic', 'true');
+        
+        toastDiv.innerHTML = `
+            <div class="toast-header ${headerClass} text-white">
+                <strong class="me-auto">Уведомление</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        // Добавляем toast в контейнер
+        toastContainer.appendChild(toastDiv);
+        
+        // Инициализируем toast
+        const toast = new bootstrap.Toast(toastDiv, {
+            autohide: true,
+            delay: 5000
+        });
+        
+        // Показываем toast
+        toast.show();
+        
+        // Удаляем toast после скрытия
+        toastDiv.addEventListener('hidden.bs.toast', function () {
+            toastDiv.remove();
         });
     }
 });

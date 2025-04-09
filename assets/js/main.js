@@ -105,24 +105,14 @@ function setupAjaxForms() {
  * @returns {Promise<Object>} Объект с данными ответа
  */
 function handleResponse(response) {
-    // Расширенное логирование для отладки
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-    
     return response.text().then(text => {
-        console.log('Raw response text:', text.substring(0, 500));
-        
         try {
             // Пробуем обработать ответ как JSON
             const data = JSON.parse(text);
             return data;
         } catch (e) {
-            console.error('JSON parse error:', e);
-            
             // Если не удалось разобрать как JSON, проверяем содержит ли ответ HTML
             if (text.trim().startsWith('<')) {
-                console.log('Received HTML response, treating as success and reloading page');
-                
                 // Создаем фиктивный объект с успешным результатом для перезагрузки страницы
                 return {
                     success: true,
