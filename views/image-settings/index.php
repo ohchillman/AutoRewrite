@@ -1,5 +1,8 @@
 <div class="row">
     <div class="col-md-12">
+        <!-- Контейнер для toast-уведомлений -->
+        <div class="toast-container position-fixed top-0 end-0 p-3"></div>
+        
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">Настройки генерации изображений</h5>
@@ -235,6 +238,54 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Функция для отображения toast-уведомлений
+    function showNotification(message, type) {
+        const toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) return;
+        
+        // Создаем уникальный ID для toast
+        const toastId = 'toast-' + Date.now();
+        
+        // Определяем цвет заголовка в зависимости от типа
+        const headerClass = type === 'success' ? 'bg-success' : 'bg-danger';
+        
+        // Создаем элемент toast
+        const toastDiv = document.createElement('div');
+        toastDiv.id = toastId;
+        toastDiv.className = 'toast fade show';
+        toastDiv.setAttribute('role', 'alert');
+        toastDiv.setAttribute('aria-live', 'assertive');
+        toastDiv.setAttribute('aria-atomic', 'true');
+        
+        toastDiv.innerHTML = `
+            <div class="toast-header ${headerClass} text-white">
+                <strong class="me-auto">Уведомление</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        // Добавляем toast в контейнер
+        toastContainer.appendChild(toastDiv);
+        
+        // Инициализируем toast
+        const toast = new bootstrap.Toast(toastDiv, {
+            autohide: true,
+            delay: 5000
+        });
+        
+        // Показываем toast
+        toast.show();
+        
+        // Удаляем toast после скрытия
+        toastDiv.addEventListener('hidden.bs.toast', function () {
+            toastDiv.remove();
+        });
+    }
+
     if (clearTempImagesBtn) {
         clearTempImagesBtn.addEventListener('click', function() {
             if (confirm('Вы уверены, что хотите удалить все временные изображения?')) {
@@ -250,49 +301,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('Received data:', data);
-                    
-                    // Показываем сообщение
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show`;
-                    alertDiv.role = 'alert';
-                    alertDiv.innerHTML = `
-                        ${data.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    
-                    // Находим контейнер
-                    const container = document.querySelector('.container') || document.body;
-                    
-                    // Вставляем уведомление в начало контейнера
-                    container.insertBefore(alertDiv, container.firstChild);
+                    showNotification(data.message, data.success ? 'success' : 'danger');
                     
                     // Восстанавливаем кнопку
                     clearTempImagesBtn.disabled = false;
                     clearTempImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с временными изображениями';
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    
-                    // Показываем сообщение об ошибке
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-                    alertDiv.role = 'alert';
-                    alertDiv.innerHTML = `
-                        Ошибка при очистке папки: ${error.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    
-                    // Находим контейнер
-                    const container = document.querySelector('.container') || document.body;
-                    
-                    // Вставляем уведомление в начало контейнера
-                    container.insertBefore(alertDiv, container.firstChild);
+                    showNotification('Ошибка при очистке папки: ' + error.message, 'danger');
                     
                     // Восстанавливаем кнопку
                     clearTempImagesBtn.disabled = false;
@@ -317,49 +335,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('Received data:', data);
-                    
-                    // Показываем сообщение
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show`;
-                    alertDiv.role = 'alert';
-                    alertDiv.innerHTML = `
-                        ${data.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    
-                    // Находим контейнер
-                    const container = document.querySelector('.container') || document.body;
-                    
-                    // Вставляем уведомление в начало контейнера
-                    container.insertBefore(alertDiv, container.firstChild);
+                    showNotification(data.message, data.success ? 'success' : 'danger');
                     
                     // Восстанавливаем кнопку
                     clearImagesBtn.disabled = false;
                     clearImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с сохраненными изображениями';
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    
-                    // Показываем сообщение об ошибке
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-                    alertDiv.role = 'alert';
-                    alertDiv.innerHTML = `
-                        Ошибка при очистке папки: ${error.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    
-                    // Находим контейнер
-                    const container = document.querySelector('.container') || document.body;
-                    
-                    // Вставляем уведомление в начало контейнера
-                    container.insertBefore(alertDiv, container.firstChild);
+                    showNotification('Ошибка при очистке папки: ' + error.message, 'danger');
                     
                     // Восстанавливаем кнопку
                     clearImagesBtn.disabled = false;
@@ -367,32 +352,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         });
-    }
-    
-    // Функция для отображения уведомлений
-    function showNotification(message, type) {
-        // Создаем элемент уведомления
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.role = 'alert';
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        
-        // Находим контейнер
-        const container = document.querySelector('.container') || document.body;
-        
-        // Вставляем уведомление в начало контейнера
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Автоматически удаляем уведомление через 5 секунд
-        setTimeout(() => {
-            alertDiv.classList.remove('show');
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 300);
-        }, 5000);
     }
 });
 
