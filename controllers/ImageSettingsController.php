@@ -31,7 +31,10 @@ class ImageSettingsController extends BaseController {
             
             // Проверяем существование директории
             if (!file_exists($tempDir)) {
-                return $this->handleSuccess('Папка с временными изображениями не существует или уже пуста');
+                return $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Папка с временными изображениями не существует или уже пуста'
+                ]);
             }
             
             // Получаем список файлов из директории
@@ -41,17 +44,24 @@ class ImageSettingsController extends BaseController {
             // Удаляем каждый файл
             foreach ($files as $file) {
                 if (is_file($file)) {
-                    unlink($file);
-                    $countDeleted++;
+                    if (unlink($file)) {
+                        $countDeleted++;
+                    }
                 }
             }
             
             Logger::info("Удалено {$countDeleted} временных изображений", 'image_settings');
             
-            return $this->handleSuccess("Успешно удалено {$countDeleted} временных изображений");
+            return $this->jsonResponse([
+                'success' => true,
+                'message' => "Успешно удалено {$countDeleted} временных изображений"
+            ]);
         } catch (Exception $e) {
             Logger::error('Ошибка при очистке временных изображений: ' . $e->getMessage(), 'image_settings');
-            return $this->handleAjaxError('Ошибка при очистке папки: ' . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'message' => 'Ошибка при очистке папки: ' . $e->getMessage()
+            ]);
         }
     }
 

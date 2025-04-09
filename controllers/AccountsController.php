@@ -348,25 +348,61 @@ class AccountsController extends BaseController {
        ]);
    }
    
+   public function updateProxy() {
+    try {
+        // Проверяем, что запрос отправлен методом POST
+        if (!$this->isMethod('POST')) {
+            return $this->handleAjaxError('Метод не поддерживается', 405);
+        }
+        
+        // Получаем данные из JSON тела запроса
+        $data = $this->getJsonInput();
+        $accountId = $data['accountId'] ?? null;
+        $proxyId = $data['proxyId'] ?? '';
+        
+        // Проверяем ID аккаунта
+        if (empty($accountId)) {
+            return $this->handleAjaxError('ID аккаунта не указан', 400);
+        }
+        
+        // Обновляем прокси для аккаунта
+        $result = $this->db->update('accounts', [
+            'proxy_id' => $proxyId ?: null
+        ], 'id = ?', [$accountId]);
+        
+        if ($result !== false) {
+            return $this->jsonResponse([
+                'success' => true,
+                'message' => 'Прокси успешно обновлен'
+            ]);
+        } else {
+            return $this->handleAjaxError('Ошибка при обновлении прокси');
+        }
+    } catch (Exception $e) {
+        Logger::error('Ошибка при обновлении прокси: ' . $e->getMessage(), 'accounts');
+        return $this->handleAjaxError('Ошибка при обновлении прокси: ' . $e->getMessage(), 500);
+    }
+}
+
    /**
     * Получение всех аккаунтов с информацией о типе
     * 
     * @return array Массив аккаунтов
     */
-   private function getAllAccounts() {
-       try {
-           return $this->db->fetchAll("
-               SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port
-               FROM accounts a
-               JOIN account_types at ON a.account_type_id = at.id
-               LEFT JOIN proxies p ON a.proxy_id = p.id
-               ORDER BY a.is_active DESC, a.name ASC
-           ");
-       } catch (Exception $e) {
-           Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
-           return [];
-       }
-   }
+//    private function getAllAccounts() {
+//        try {
+//            return $this->db->fetchAll("
+//                SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port
+//                FROM accounts a
+//                JOIN account_types at ON a.account_type_id = at.id
+//                LEFT JOIN proxies p ON a.proxy_id = p.id
+//                ORDER BY a.is_active DESC, a.name ASC
+//            ");
+//        } catch (Exception $e) {
+//            Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
+//            return [];
+//        }
+//    }
    
    /**
     * Получение всех типов аккаунтов
@@ -398,5 +434,132 @@ class AccountsController extends BaseController {
            Logger::error('Ошибка при получении списка прокси: ' . $e->getMessage(), 'accounts');
            return [];
        }
+    }
+    /**
+     * Проверка работоспособности аккаунта
+     * 
+     * @param int $id ID аккаунта
+     * @return void
+     */
+    public function verify($id) {
+        try {
+            // Проверяем, существует ли аккаунт
+            $account = $this->db->fetchOne("
+                SELECT a.*, at.name as account_type_name 
+                FROM accounts a
+                JOIN account_types at ON a.account_type_id = at.id
+                WHERE a.id = ?
+            ", [$id]);
+            
+            if (!$account) {
+                return $this->handleAjaxError("Аккаунт не найден");
+            }
+            
+            // Инициализируем менеджер прокси
+            require_once __DIR__ . "/../utils/proxy/ProxyManager.php";
+            $proxyManager = new ProxyManager($this->db, new Logger("accounts"));
+            
+            // Инициализируем верификатор аккаунтов
+            require_once __DIR__ . "/../utils/proxy/AccountVerifier.php";
+            $accountVerifier = new AccountVerifier($this->db, $proxyManager, new Logger("accounts"));
+            
+            // Проверяем аккаунт
+            $result = $accountVerifier->verifyAccount($account);
+            
+            // Логируем результат
+            if ($result["success"]) {
+                Logger::info("Аккаунт {$account["name"]} (ID: {$id}) успешно проверен: {$result["message"]}", "accounts");
+            } else {
+                Logger::warning("Ошибка при проверке аккаунта {$account["name"]} (ID: {$id}): {$result["message"]}", "accounts");
+            }
+            
+            // Возвращаем результат
+            return $this->jsonResponse([
+                "success" => $result["success"],
+                "message" => $result["message"]
+            ]);
+        } catch (Exception $e) {
+            Logger::error("Ошибка при проверке аккаунта: " . $e->getMessage(), "accounts");
+            return $this->handleAjaxError("Ошибка при проверке аккаунта: " . $e->getMessage(), 500);
+        }
+    }
+
+    private function getAllAccounts() {
+        try {
+            return $this->db->fetchAll("
+                SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port, p.status as proxy_status
+                FROM accounts a
+                JOIN account_types at ON a.account_type_id = at.id
+                LEFT JOIN proxies p ON a.proxy_id = p.id
+                ORDER BY a.is_active DESC, a.name ASC
+            ");
+        } catch (Exception $e) {
+            Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
+            return [];
+        }
+    }
+    
+    /**
+     * Массовая проверка аккаунтов
+     * 
+     * @return void
+     */
+    public function bulkVerify() {
+        try {
+            // Получаем ID аккаунтов из запроса
+            $ids = $this->post("ids");
+            
+            if (empty($ids) || !is_array($ids)) {
+                return $this->handleAjaxError("Не выбрано ни одного аккаунта для проверки");
+            }
+            
+            // Инициализируем менеджер прокси
+            require_once __DIR__ . "/../utils/proxy/ProxyManager.php";
+            $proxyManager = new ProxyManager($this->db, new Logger("accounts"));
+            
+            // Инициализируем верификатор аккаунтов
+            require_once __DIR__ . "/../utils/proxy/AccountVerifier.php";
+            $accountVerifier = new AccountVerifier($this->db, $proxyManager, new Logger("accounts"));
+            
+            // Проверяем каждый аккаунт
+            $results = [];
+            foreach ($ids as $id) {
+                // Получаем данные аккаунта
+                $account = $this->db->fetchOne("
+                    SELECT a.*, at.name as account_type_name 
+                    FROM accounts a
+                    JOIN account_types at ON a.account_type_id = at.id
+                    WHERE a.id = ?
+                ", [$id]);
+                
+                if (!$account) {
+                    $results[$id] = [
+                        "success" => false,
+                        "message" => "Аккаунт не найден"
+                    ];
+                    continue;
+                }
+                
+                // Проверяем аккаунт
+                $result = $accountVerifier->verifyAccount($account);
+                $results[$id] = $result;
+                
+                // Логируем результат
+                if ($result["success"]) {
+                    Logger::info("Аккаунт {$account["name"]} (ID: {$id}) успешно проверен: {$result["message"]}", "accounts");
+                } else {
+                    Logger::warning("Ошибка при проверке аккаунта {$account["name"]} (ID: {$id}): {$result["message"]}", "accounts");
+                }
+            }
+            
+            // Возвращаем результаты
+            return $this->jsonResponse([
+                "success" => true,
+                "results" => $results
+            ]);
+        } catch (Exception $e) {
+            Logger::error("Ошибка при массовой проверке аккаунтов: " . $e->getMessage(), "accounts");
+            return $this->handleAjaxError("Ошибка при массовой проверке аккаунтов: " . $e->getMessage(), 500);
+        }
+    }
    }
-}

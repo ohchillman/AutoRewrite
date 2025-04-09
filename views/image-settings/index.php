@@ -186,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const stableDiffusionSettings = document.querySelector('.stable-diffusion-settings');
     const dalleSettings = document.querySelector('.dalle-settings');
     const midjourneySettings = document.querySelector('.midjourney-settings');
+    
     const clearTempImagesBtn = document.getElementById('clearTempImagesBtn');
 
     if (imageApiProviderSelect) {
@@ -221,7 +222,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
     if (clearTempImagesBtn) {
         clearTempImagesBtn.addEventListener('click', function() {
             if (confirm('Вы уверены, что хотите удалить все временные изображения?')) {
@@ -230,24 +230,56 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearTempImagesBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Очистка...';
                 
                 // Отправляем запрос на очистку
-                fetch('/image-settings/clearTemp', {
+                fetch('/image-settings/clearTempImages', {
                     method: 'POST',
                     headers: {
+                        'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Received data:', data);
+                    
                     // Показываем сообщение
-                    showNotification(data.message, data.success ? 'success' : 'danger');
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show`;
+                    alertDiv.role = 'alert';
+                    alertDiv.innerHTML = `
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Находим контейнер
+                    const container = document.querySelector('.container') || document.body;
+                    
+                    // Вставляем уведомление в начало контейнера
+                    container.insertBefore(alertDiv, container.firstChild);
                     
                     // Восстанавливаем кнопку
                     clearTempImagesBtn.disabled = false;
                     clearTempImagesBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить папку с временными изображениями';
                 })
                 .catch(error => {
+                    console.error('Error:', error);
+                    
                     // Показываем сообщение об ошибке
-                    showNotification('Ошибка при очистке папки: ' + error.message, 'danger');
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    alertDiv.role = 'alert';
+                    alertDiv.innerHTML = `
+                        Ошибка при очистке папки: ${error.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Находим контейнер
+                    const container = document.querySelector('.container') || document.body;
+                    
+                    // Вставляем уведомление в начало контейнера
+                    container.insertBefore(alertDiv, container.firstChild);
                     
                     // Восстанавливаем кнопку
                     clearTempImagesBtn.disabled = false;

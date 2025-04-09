@@ -151,7 +151,7 @@ function setupProxyChecking() {
             this.disabled = true;
             
             // Отправляем запрос на проверку
-            fetch('/proxies/check/' + proxyId, {
+            fetch('/proxies/test/' + proxyId, {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
