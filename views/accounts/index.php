@@ -245,9 +245,15 @@
                                 <td><?php echo htmlspecialchars($account['username'] ?: '-'); ?></td>
                                 <td>
                                     <?php if (!empty($account['proxy_ip'])): ?>
-                                        <span class="badge <?php if ($account['proxy_status'] == 'working'): ?>bg-success<?php else: ?>bg-danger<?php endif; ?>">
-                                            <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
-                                        </span>
+                                        <?php if (isset($account['proxy_status']) && $account['proxy_status'] == 'working'): ?>
+                                            <span class="badge bg-success">
+                                                <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-danger">
+                                                <?php echo htmlspecialchars($account['proxy_ip'] . ':' . $account['proxy_port']); ?>
+                                            </span>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>

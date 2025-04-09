@@ -353,20 +353,20 @@ class AccountsController extends BaseController {
     * 
     * @return array Массив аккаунтов
     */
-   private function getAllAccounts() {
-       try {
-           return $this->db->fetchAll("
-               SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port
-               FROM accounts a
-               JOIN account_types at ON a.account_type_id = at.id
-               LEFT JOIN proxies p ON a.proxy_id = p.id
-               ORDER BY a.is_active DESC, a.name ASC
-           ");
-       } catch (Exception $e) {
-           Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
-           return [];
-       }
-   }
+//    private function getAllAccounts() {
+//        try {
+//            return $this->db->fetchAll("
+//                SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port
+//                FROM accounts a
+//                JOIN account_types at ON a.account_type_id = at.id
+//                LEFT JOIN proxies p ON a.proxy_id = p.id
+//                ORDER BY a.is_active DESC, a.name ASC
+//            ");
+//        } catch (Exception $e) {
+//            Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
+//            return [];
+//        }
+//    }
    
    /**
     * Получение всех типов аккаунтов
@@ -445,6 +445,21 @@ class AccountsController extends BaseController {
         } catch (Exception $e) {
             Logger::error("Ошибка при проверке аккаунта: " . $e->getMessage(), "accounts");
             return $this->handleAjaxError("Ошибка при проверке аккаунта: " . $e->getMessage(), 500);
+        }
+    }
+
+    private function getAllAccounts() {
+        try {
+            return $this->db->fetchAll("
+                SELECT a.*, at.name as account_type_name, p.ip as proxy_ip, p.port as proxy_port, p.status as proxy_status
+                FROM accounts a
+                JOIN account_types at ON a.account_type_id = at.id
+                LEFT JOIN proxies p ON a.proxy_id = p.id
+                ORDER BY a.is_active DESC, a.name ASC
+            ");
+        } catch (Exception $e) {
+            Logger::error('Ошибка при получении списка аккаунтов: ' . $e->getMessage(), 'accounts');
+            return [];
         }
     }
     
