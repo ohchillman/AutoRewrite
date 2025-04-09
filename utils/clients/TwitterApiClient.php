@@ -1,7 +1,15 @@
 <?php
 /**
  * TwitterApiClient с поддержкой прокси
+ * Использует библиотеку Abraham\TwitterOAuth для авторизации и отправки запросов
  */
+
+// Подключаем автозагрузчик Composer
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+// Импортируем класс TwitterOAuth
+use Abraham\TwitterOAuth\TwitterOAuth;
+
 class TwitterApiClient extends BaseApiClient {
     /**
      * @var string API ключ
@@ -24,6 +32,11 @@ class TwitterApiClient extends BaseApiClient {
     private $accessTokenSecret;
     
     /**
+     * @var TwitterOAuth Экземпляр клиента TwitterOAuth
+     */
+    private $connection;
+    
+    /**
      * Конструктор класса
      * 
      * @param string $apiKey API ключ
@@ -39,6 +52,55 @@ class TwitterApiClient extends BaseApiClient {
         $this->apiSecret = $apiSecret;
         $this->accessToken = $accessToken;
         $this->accessTokenSecret = $accessTokenSecret;
+        
+        // Инициализация соединения будет выполнена при первом запросе
+        // для возможности настройки прокси перед соединением
+    }
+    
+    /**
+     * Инициализация соединения с Twitter API
+     * 
+     * @return TwitterOAuth Экземпляр клиента TwitterOAuth
+     */
+    private function initConnection() {
+        if (!$this->connection) {
+            $this->logger->debug("Initializing Twitter connection");
+            
+            // Создаем экземпляр TwitterOAuth
+            $this->connection = new TwitterOAuth(
+                $this->apiKey,
+                $this->apiSecret,
+                $this->accessToken,
+                $this->accessTokenSecret
+            );
+            
+            // Устанавливаем версию API
+            $this->connection->setApiVersion('2');
+            
+            // Если настроен прокси, применяем его
+            if ($this->proxy) {
+                $proxyString = "{$this->proxy['protocol']}://{$this->proxy['ip']}:{$this->proxy['port']}";
+                
+                // Настраиваем прокси для TwitterOAuth
+                $this->connection->setProxy([
+                    'CURLOPT_PROXY' => $proxyString,
+                    'CURLOPT_HTTPPROXYTUNNEL' => true,
+                    'CURLOPT_CONNECTTIMEOUT' => 30
+                ]);
+                
+                // Если есть аутентификация, добавляем ее
+                if (!empty($this->proxy['username']) && !empty($this->proxy['password'])) {
+                    $proxyAuth = "{$this->proxy['username']}:{$this->proxy['password']}";
+                    $this->connection->setProxy([
+                        'CURLOPT_PROXYUSERPWD' => $proxyAuth
+                    ]);
+                }
+                
+                $this->logger->debug("Twitter connection configured with proxy: $proxyString");
+            }
+        }
+        
+        return $this->connection;
     }
     
     /**
@@ -50,89 +112,41 @@ class TwitterApiClient extends BaseApiClient {
     public function postTweet($text) {
         $this->logger->debug("Posting tweet: " . substr($text, 0, 50) . "...");
         
-        // URL для публикации твита
-        $url = 'https://api.twitter.com/1.1/statuses/update.json';
-        
-        // Параметры запроса
-        $params = [
-            'status' => $text
-        ];
-        
-        // Создаем подпись OAuth для запроса
-        $oauth = [
-            'oauth_consumer_key' => $this->apiKey,
-            'oauth_nonce' => md5(uniqid(rand(), true)),
-            'oauth_signature_method' => 'HMAC-SHA1',
-            'oauth_timestamp' => time(),
-            'oauth_token' => $this->accessToken,
-            'oauth_version' => '1.0'
-        ];
-        
-        // Объединяем параметры для создания подписи
-        $signParams = array_merge($oauth, $params);
-        
-        // Создаем строку для подписи
-        $baseString = 'POST&' . rawurlencode($url) . '&' . rawurlencode(http_build_query($signParams, '', '&', PHP_QUERY_RFC3986));
-        
-        // Создаем ключ для подписи
-        $signingKey = rawurlencode($this->apiSecret) . '&' . rawurlencode($this->accessTokenSecret);
-        
-        // Вычисляем подпись
-        $oauth['oauth_signature'] = base64_encode(hash_hmac('sha1', $baseString, $signingKey, true));
-        
-        // Создаем заголовок авторизации
-        $authHeader = 'OAuth ' . implode(', ', array_map(function($key, $value) {
-            return "$key=\"" . rawurlencode($value) . "\"";
-        }, array_keys($oauth), $oauth));
-        
-        // Инициализируем cURL
-        $ch = curl_init();
-        
-        // Настраиваем cURL
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: ' . $authHeader]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        
-        // Если есть прокси, настраиваем его
-        if ($this->proxy) {
-            $this->setupCurlWithProxy($ch);
-        }
-        
-        // Выполняем запрос
-        $response = curl_exec($ch);
-        $error = curl_error($ch);
-        $info = curl_getinfo($ch);
-        
-        // Закрываем соединение
-        curl_close($ch);
-        
-        // Проверяем результат
-        if ($error) {
-            $this->logger->error("cURL error: $error");
-            return [
-                'error' => $error
-            ];
-        }
-        
-        // Декодируем ответ
-        $responseData = json_decode($response, true);
-        
-        if ($info['http_code'] != 200) {
-            $errorMessage = isset($responseData['errors'][0]['message']) 
-                ? $responseData['errors'][0]['message'] 
-                : "HTTP code: {$info['http_code']}";
+        try {
+            // Инициализируем соединение
+            $connection = $this->initConnection();
             
-            $this->logger->error("Twitter API error: $errorMessage");
+            // Данные для отправки
+            $data = [
+                'text' => $text
+            ];
+            
+            // Отправка запроса через библиотеку TwitterOAuth
+            $response = $connection->post('tweets', $data, true);
+            
+            // Проверяем наличие ошибок
+            if ($connection->getLastHttpCode() != 201) {
+                $errorMessage = isset($response->detail) ? $response->detail : 'Unknown error';
+                $this->logger->error("Twitter API error: $errorMessage");
+                
+                return [
+                    'error' => $errorMessage,
+                    'code' => $connection->getLastHttpCode()
+                ];
+            }
+            
+            // Логируем успешную публикацию
+            $tweetId = isset($response->data->id) ? $response->data->id : 'unknown';
+            $this->logger->info("Tweet posted successfully, ID: $tweetId");
+            
+            // Преобразуем объект в массив для совместимости с существующим кодом
+            return json_decode(json_encode($response), true);
+        } catch (\Exception $e) {
+            $this->logger->error("Exception during tweet posting: " . $e->getMessage());
+            
             return [
-                'error' => $errorMessage
+                'error' => $e->getMessage()
             ];
         }
-        
-        $this->logger->info("Tweet posted successfully, ID: " . ($responseData['id'] ?? 'unknown'));
-        return $responseData;
     }
 }

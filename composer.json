@@ -1,0 +1,12 @@
+{
+    "name": "ohchillman/autorewrite",
+    "description": "AutoRewrite project",
+    "authors": [
+        {
+            "name": "ohchillman"
+        }
+    ],
+    "require": {
+        "abraham/twitteroauth": "^7.0"
+    }
+}
