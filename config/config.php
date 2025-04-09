@@ -23,15 +23,22 @@ define('UTILS_PATH', BASE_PATH . '/utils');
 define('LOGS_PATH', BASE_PATH . '/logs');
 
 // URL сайта
-define('BASE_URL', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://' . $_SERVER['HTTP_HOST']);
+if (!defined('CLI_MODE')) {
+    define('BASE_URL', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://' . 
+        (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost'));
+} else {
+    define('BASE_URL', 'http://localhost');
+}
 
 // Настройки логирования
 define('LOG_ENABLED', true);
 define('LOG_LEVEL', 'debug'); // debug, info, warning, error
 
 // Настройки сессии
-ini_set('session.cookie_httponly', 1);
-session_start();
+if (!defined('CLI_MODE')) {
+    ini_set('session.cookie_httponly', 1);
+    session_start();
+}
 
 // Обработка ошибок
 if (DEBUG) {

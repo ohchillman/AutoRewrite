@@ -4,8 +4,14 @@
  * с выбором аккаунта из базы данных
  */
 
+// Определяем константу для CLI режима
+define('CLI_MODE', true);
+
 // Подключаем необходимые файлы
 require_once __DIR__ . '/config/config.php';
+
+// Явно подключаем класс Database
+require_once __DIR__ . '/utils/Database.php';
 require_once __DIR__ . '/utils/Logger.php';
 require_once __DIR__ . '/utils/proxy/ProxyManager.php';
 require_once __DIR__ . '/utils/proxy/SocialMediaClientFactory.php';
