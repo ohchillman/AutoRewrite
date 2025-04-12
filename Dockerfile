@@ -18,15 +18,13 @@ RUN apt-get update && apt-get install -y \
 # Включение mod_rewrite для Apache
 RUN a2enmod rewrite
 
+# Настройка прав на будущие монтируемые папки (на случай если проект собирается без томов)
+RUN mkdir -p /var/www/html/uploads/images && \
+    chown -R www-data:www-data /var/www/html/uploads && \
+    chmod -R 775 /var/www/html/uploads
+
 # Установка рабочей директории
 WORKDIR /var/www/html
-
-# Копирование файлов проекта
-COPY . /var/www/html/
-
-# Установка прав доступа
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html
 
 # Настройка cron задач
 COPY docker/crontab /etc/cron.d/autorewrite-cron
